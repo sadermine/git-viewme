@@ -57,6 +57,9 @@ jobs:
 
       - run: cargo test -p git-viewme-core # non-dotnet-checks
 
+      # Permitted deviation non-dotnet-checks: only the token guard's files read the token.
+      - run: "! git grep -nE 'load_token|[.]secret[(]' -- crates src-tauri ':!crates/core/src/token.rs' ':!crates/core/src/github.rs' ':!crates/core/src/auth.rs'" # non-dotnet-checks
+
       # Permitted deviation non-dotnet-checks: Node.js is pinned in .nvmrc, and svelte-check's
       # settings live in package.json's check script and tsconfig.json.
       - uses: actions/setup-node@v5 # non-dotnet-checks

@@ -16,7 +16,7 @@ rule = "The OAuth token never reaches the interface, a log line or anywhere but 
 points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send"]
 paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs"]
 
-# CLAUDE.md, Commands, gives each check's prerequisites. The first five mirror ci.yml's steps.
+# CLAUDE.md, Commands, gives each check's prerequisites. The first six mirror ci.yml's steps.
 
 [[pre_push]]
 command = "cargo fmt --check"
@@ -26,6 +26,12 @@ command = "cargo clippy -p git-viewme-core"
 
 [[pre_push]]
 command = "cargo test -p git-viewme-core"
+
+# Only the token guard's files read the token, so a new reader elsewhere fails here instead of
+# passing at prototype with no security review.
+[[pre_push]]
+command = "! git grep -nE 'load_token|[.]secret[(]' -- crates src-tauri ':!crates/core/src/token.rs' ':!crates/core/src/github.rs' ':!crates/core/src/auth.rs'"
+shell = "bash"
 
 [[pre_push]]
 command = "npm ci"
