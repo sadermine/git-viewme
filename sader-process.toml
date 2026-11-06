@@ -1,0 +1,33 @@
+# This repository's settings for the sader skills. The keys are defined by
+# ~/.claude/rules/sader-process-standard.md.
+
+# git-viewme has no GitHub Projects board yet.
+board = false
+platforms = ["linux", "windows"]
+
+# CLAUDE.md, Commands, gives each check's prerequisites. The first five mirror ci.yml's steps.
+
+[[pre_push]]
+command = "cargo fmt --check"
+
+[[pre_push]]
+command = "cargo clippy -p git-viewme-core"
+
+[[pre_push]]
+command = "cargo test -p git-viewme-core"
+
+[[pre_push]]
+command = "npm ci"
+
+[[pre_push]]
+command = "npm run check"
+
+# CI leaves src-tauri out, and on Linux it needs the WebKitGTK system packages.
+[[pre_push]]
+command = "cargo clippy -p git-viewme"
+platforms = ["windows"]
+
+# The prototype spec's "CI until release" section chooses this deviation. The pull request that
+# adds this table records Don's approval (sader-process standard, rule 1).
+[ci]
+deviations = ["non-dotnet-checks"]
