@@ -1,0 +1,68 @@
+# Copy of the CI reference installed at D:\my-repo\.github\workflows\ci.yml. The rule behind it is
+# ~/.claude/rules/ci-standard.md. This repository has no .NET code, so the build job runs the Rust
+# and Svelte checks instead of dotnet; every other line matches the reference. Compiling src-tauri,
+# Windows and macOS runners, and installers stay out until release (CLAUDE.md, Out of scope).
+name: CI
+
+on:
+  # The default pull_request types plus ready_for_review, so marking a draft ready runs the check
+  # its draft pushes skipped.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request supersedes the run it made obsolete. Pushes to main are never
+# cancelled: two close merges would otherwise leave main with a run that never concluded,
+# neither green nor red.
+# A draft's run, whose build is skipped, takes a group of its own, so it never cancels a run that
+# builds. In one group, a push to a draft whose run GitHub creates after the ready_for_review run
+# cancels that run and leaves the head with no build (sadermine/sader-trader #487).
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event.pull_request.draft && 'draft' || 'build' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The job id is the check name. Merge tooling matches the literal string `build` in every
+  # repository. Renaming it switches the merge gate off without anyone deciding that.
+  build:
+    # A draft is never merged and its author tests locally, so its pushes spend no minutes. The
+    # check reads skipped on a draft head until the pull request is marked ready.
+    if: ${{ !github.event.pull_request.draft }}
+    # ubuntu-latest unless the target framework forbids it. WPF (net10.0-windows) needs
+    # windows-latest, which bills at twice the Linux rate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # Permitted deviation non-dotnet-checks, no .NET code: these steps replace the reference's
+      # setup-dotnet, restore, build and test steps. rustup reads the toolchain and its rustfmt and
+      # clippy components from rust-toolchain.toml, which a desk uses too.
+      - run: rustup toolchain install # non-dotnet-checks
+
+      # Permitted deviation non-dotnet-checks: restores the Cargo registry and target folder.
+      - uses: Swatinem/rust-cache@v2 # non-dotnet-checks
+
+      # drops with: non-dotnet-checks
+      # Permitted deviation non-dotnet-checks: one step per check, so a red run names the check
+      # that failed. Lint levels live in [workspace.lints] in Cargo.toml, never in flags here.
+      - run: cargo fmt --check # non-dotnet-checks
+
+      - run: cargo clippy -p git-viewme-core # non-dotnet-checks
+
+      - run: cargo test -p git-viewme-core # non-dotnet-checks
+
+      # Permitted deviation non-dotnet-checks: Node.js is pinned in .nvmrc, and svelte-check's
+      # settings live in package.json's check script and tsconfig.json.
+      - uses: actions/setup-node@v5 # non-dotnet-checks
+        with:
+          node-version-file: .nvmrc # non-dotnet-checks
+
+      - run: npm ci # non-dotnet-checks
+
+      - run: npm run check # non-dotnet-checks
