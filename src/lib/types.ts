@@ -34,6 +34,8 @@ export type CoreError =
   | { kind: 'rate_limited'; reset_at: number }
   | { kind: 'network' }
   | { kind: 'not_found' }
+  | { kind: 'no_client_id' }
+  | { kind: 'client_id_rejected' }
   | { kind: 'other'; message: string };
 
 export function repoKey(ref: RepoRef): string {

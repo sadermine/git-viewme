@@ -17,6 +17,8 @@ const ERROR_KINDS: ReadonlySet<string> = new Set<CoreError['kind']>([
   'rate_limited',
   'network',
   'not_found',
+  'no_client_id',
+  'client_id_rejected',
   'other',
 ]);
 
@@ -44,6 +46,12 @@ export function asCoreError(error: unknown): CoreError {
 }
 
 export const signedIn = () => call<boolean>('signed_in');
+
+/** The saved OAuth app client ID, or null when the user has not entered one. */
+export const clientId = () => call<string | null>('client_id');
+
+/** Validates and saves the client ID, and resolves to it as saved (trimmed). */
+export const saveClientId = (clientId: string) => call<string>('save_client_id', { clientId });
 
 export function signIn(onPrompt: (prompt: DevicePrompt) => void): Promise<void> {
   const channel = new Channel<DevicePrompt>();

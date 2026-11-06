@@ -14,6 +14,10 @@ pub enum CoreError {
     },
     Network,
     NotFound,
+    /// No client ID is saved, so sign-in cannot start.
+    NoClientId,
+    /// GitHub does not know the saved client ID, or its OAuth app has device flow turned off.
+    ClientIdRejected,
     Other {
         message: String,
     },

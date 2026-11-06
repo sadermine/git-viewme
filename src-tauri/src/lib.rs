@@ -2,7 +2,8 @@
 //! GitHub logic stays in the crate a hosted version can reuse.
 
 use git_viewme_core::{
-    Board, CoreError, DevicePrompt, FileContent, GitHub, ProjectRef, Repo, RepoRef, TreeEntry,
+    Board, ClientId, CoreError, DevicePrompt, FileContent, GitHub, ProjectRef, Repo, RepoRef,
+    TreeEntry,
 };
 use tauri::State;
 use tauri::ipc::Channel;
@@ -10,6 +11,16 @@ use tauri::ipc::Channel;
 #[tauri::command]
 fn signed_in() -> Result<bool, CoreError> {
     git_viewme_core::is_signed_in()
+}
+
+#[tauri::command]
+fn client_id() -> Result<Option<ClientId>, CoreError> {
+    git_viewme_core::client_id()
+}
+
+#[tauri::command]
+fn save_client_id(client_id: String) -> Result<ClientId, CoreError> {
+    git_viewme_core::save_client_id(&client_id)
 }
 
 #[tauri::command]
@@ -66,6 +77,8 @@ pub fn run() {
         .manage(GitHub::default())
         .invoke_handler(tauri::generate_handler![
             signed_in,
+            client_id,
+            save_client_id,
             sign_in,
             sign_out,
             list_repos,

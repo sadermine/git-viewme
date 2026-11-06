@@ -1,5 +1,6 @@
-//! GitHub access for git-viewme: sign-in, token storage, requests, and the domain types the
-//! interface receives. Nothing here depends on Tauri, so a hosted server can call the same code.
+//! GitHub access for git-viewme: sign-in, the saved client ID, token storage, requests, and the
+//! domain types the interface receives. Nothing here depends on Tauri, so a hosted server can call
+//! the same code.
 
 mod auth;
 mod board;
@@ -7,14 +8,16 @@ mod error;
 mod files;
 mod github;
 mod repos;
+mod settings;
 mod token;
 
-pub use auth::{CLIENT_ID, DevicePrompt};
+pub use auth::DevicePrompt;
 pub use board::board_from_pages;
 pub use error::{CoreError, error_for_status};
 pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
 pub use repos::repos_from_pages;
+pub use settings::{ClientId, client_id, save_client_id};
 pub use token::{AccessToken, delete_token, is_signed_in, store_token};
 
 use serde::{Deserialize, Serialize};

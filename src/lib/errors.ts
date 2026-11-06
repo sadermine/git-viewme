@@ -11,6 +11,10 @@ export function describeError(error: CoreError, what: string): string {
       return 'GitHub could not be reached. Check the network connection, then retry.';
     case 'not_found':
       return `GitHub could not find the ${what}. It may have moved, or this account cannot see it.`;
+    case 'no_client_id':
+      return 'Enter the client ID of your GitHub OAuth app first.';
+    case 'client_id_rejected':
+      return 'GitHub rejected this client ID. Check that it is copied in full and that the OAuth app has Enable Device Flow ticked.';
     case 'unauthorized':
       return 'GitHub no longer accepts this sign-in.';
     case 'other':
