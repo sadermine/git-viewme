@@ -39,8 +39,8 @@ impl GitHub {
 }
 
 /// Turns the bodies of REST pull-request-list pages into pull requests, most recently updated
-/// first. A pull request updated while the pages load can appear on two pages, and only its
-/// latest copy is kept.
+/// first, each number once. When a pull request moves to the top while the pages load, the rows
+/// below it shift down a place, so the last row of one page comes back on the next.
 pub fn pull_requests_from_pages<'a>(
     pages: impl IntoIterator<Item = &'a str>,
 ) -> Result<Vec<PullRequest>, CoreError> {
