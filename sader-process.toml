@@ -5,6 +5,17 @@
 board = false
 platforms = ["linux", "windows"]
 
+# Every card gets the prototype checks, except one that changes a [[guarded]] path, which runs at
+# gold. Don H approved both on 2026-11-06 (sadermine/git-viewme #2).
+tier = "prototype"
+
+# The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
+[[guarded]]
+id = "token"
+rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store."
+points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in"]
+paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs"]
+
 # CLAUDE.md, Commands, gives each check's prerequisites. The first five mirror ci.yml's steps.
 
 [[pre_push]]
