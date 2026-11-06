@@ -47,7 +47,7 @@ Build a runnable debug app with `npm run tauri build -- --debug --no-bundle`. It
 - `cargo clippy -p git-viewme-core` passes while `src-tauri` is broken, because it compiles only the core crate. Run `cargo clippy -p git-viewme` too before a pull request.
 - `npm run check` fails on any svelte-check warning (`--fail-on-warnings` in `package.json`). Reading a prop at the top level of a component, outside `$derived`, is a warning.
 - The Files view relies on `file_tree` returning entries depth first, folders before files (`tree_from_response` in `crates/core/src/files.rs`). A different order hides the wrong rows when a folder collapses.
-- `list_issues` in `crates/core/src/issues.rs` stops at the first page with fewer than 100 entries, counted before pull requests are dropped. Counting after the drop ends the list early, with no error, on any page that holds a pull request.
+- `Pagination with the page parameter is not supported for large datasets, please use cursor based pagination` (a `422`) comes from a REST list fetched with `page` past 99. Fetch every REST list with `GitHub::get_pages` in `crates/core/src/github.rs`, which follows the cursor in the `Link: rel="next"` header. A `page` loop works on small repositories and fails only on large ones.
 - The CSP in `tauri.conf.json` applies to the built app only. `npm run tauri dev` can work while a CSP mistake blanks the built window, so test a build.
 
 ## Out of scope

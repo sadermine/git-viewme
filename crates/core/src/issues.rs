@@ -2,8 +2,6 @@ use serde::Deserialize;
 
 use crate::{CoreError, GitHub, Issue, IssueState, RepoRef};
 
-const PER_PAGE: usize = 100;
-
 impl GitHub {
     /// Every issue in the repository with the given state, most recently updated first. Pull
     /// requests are left out.
@@ -12,30 +10,18 @@ impl GitHub {
         repo: &RepoRef,
         state: IssueState,
     ) -> Result<Vec<Issue>, CoreError> {
-        let per_page = PER_PAGE.to_string();
-        let mut nodes = Vec::new();
-        for page in 1.. {
-            let page = page.to_string();
-            let body = self
-                .get(
-                    &["repos", &repo.owner, &repo.name, "issues"],
-                    &[
-                        ("state", state.as_str()),
-                        ("sort", "updated"),
-                        ("direction", "desc"),
-                        ("per_page", &per_page),
-                        ("page", &page),
-                    ],
-                )
-                .await?;
-            let page_nodes = parse_page(&body)?;
-            let last = page_nodes.len() < PER_PAGE;
-            nodes.extend(page_nodes);
-            if last {
-                break;
-            }
-        }
-        Ok(issues_from_nodes(nodes))
+        let pages = self
+            .get_pages(
+                &["repos", &repo.owner, &repo.name, "issues"],
+                &[
+                    ("state", state.as_str()),
+                    ("sort", "updated"),
+                    ("direction", "desc"),
+                    ("per_page", "100"),
+                ],
+            )
+            .await?;
+        issues_from_pages(pages.iter().map(String::as_str))
     }
 }
 
@@ -69,8 +55,8 @@ fn issues_from_nodes(nodes: Vec<IssueNode>) -> Vec<Issue> {
             html_url: node.html_url,
         })
         .collect();
-    // Offset paging can return an issue on two pages when another moves above it mid-fetch, and
-    // the view keys its rows by number.
+    // An issue updated while the pages are fetched can come back on two of them, and the view
+    // keys its rows by number.
     issues.sort_by_key(|issue| issue.number);
     issues.dedup_by_key(|issue| issue.number);
     issues.sort_by(|a, b| {
