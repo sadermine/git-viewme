@@ -39,7 +39,8 @@ impl GitHub {
 }
 
 /// Turns the bodies of REST pull-request-list pages into pull requests, most recently updated
-/// first.
+/// first. A pull request updated while the pages load can appear on two pages, and only its
+/// latest copy is kept.
 pub fn pull_requests_from_pages<'a>(
     pages: impl IntoIterator<Item = &'a str>,
 ) -> Result<Vec<PullRequest>, CoreError> {
@@ -78,6 +79,12 @@ fn pull_requests_from_nodes(nodes: Vec<PullNode>) -> Vec<PullRequest> {
             html_url: node.html_url,
         })
         .collect();
+    pulls.sort_by(|a, b| {
+        a.number
+            .cmp(&b.number)
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
+    });
+    pulls.dedup_by_key(|pull| pull.number);
     pulls.sort_by(|a, b| {
         b.updated_at
             .cmp(&a.updated_at)

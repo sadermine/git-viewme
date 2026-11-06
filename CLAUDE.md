@@ -27,7 +27,8 @@ Build a runnable debug app with `npm run tauri build -- --debug --no-bundle`. It
 - `src/lib/api.ts` is the only file that imports `@tauri-apps/api`. Check with `grep -rl "@tauri-apps/api" src`.
 - Every color is a custom property in `src/app.css`, defined once for light under `:root` and once for dark under `@media (prefers-color-scheme: dark)`. Text tokens keep 4.5:1 contrast against every background token. Check with `grep -rnE '#[0-9a-fA-F]{3,8}\b|(rgb|hsl)a?\(' src --exclude=app.css`, which prints nothing.
 - The views in a repository tab come from `VIEWS` in `src/lib/views.ts`. A new view is one entry there and one component in `src/lib/views/`.
-- A merged pull request is shown as merged, not closed. GitHub reports it as `state: closed` and only `merged_at` tells it apart. `pull_requests_from_nodes` in `crates/core/src/pulls.rs` folds state, `merged_at` and `draft` into one `PullRequestStatus`, and `crates/core/tests/pulls.rs` checks a merged and an unmerged closed pull request.
+- The Pull requests view lists every pull request in the chosen state, once each. `list_pull_requests` in `crates/core/src/pulls.rs` reads pages of 100 and stops at the first page with fewer than 100 items. `pull_requests_from_nodes` keeps one copy of each number, the latest, because a pull request updated during paging can appear on two pages, and a repeated number breaks the view's keyed list (`each_key_duplicate`). Tested in `crates/core/tests/pulls.rs`.
+- A merged pull request is shown as merged, not closed. GitHub reports it as `state: closed`, and only `merged_at` tells it apart. `pull_requests_from_nodes` in `crates/core/src/pulls.rs` folds `state`, `merged_at` and `draft` into one `PullRequestStatus`. `pull_requests_from_pages_tells_merged_from_closed_without_merging` in `crates/core/tests/pulls.rs` checks it.
 - Lint levels live in `[workspace.lints]` in `Cargo.toml` at `deny`, so a warning fails the build without a flag.
 
 ## Closed decisions

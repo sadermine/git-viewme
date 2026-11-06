@@ -105,6 +105,29 @@ fn pull_requests_from_pages_orders_most_recently_updated_first_across_pages() {
 }
 
 #[test]
+fn pull_requests_from_pages_keeps_one_copy_of_a_pull_request_on_two_pages() {
+    let first = json!([
+        pull(5, "2026-11-04T08:00:00Z"),
+        pull(4, "2026-11-03T08:00:00Z")
+    ])
+    .to_string();
+    let mut updated = pull(4, "2026-11-06T08:00:00Z");
+    updated["draft"] = json!(true);
+    let second = json!([updated, pull(3, "2026-11-02T08:00:00Z")]).to_string();
+
+    let pulls = pull_requests_from_pages([first.as_str(), second.as_str()]).unwrap();
+
+    assert_eq!(
+        statuses(&pulls),
+        [
+            (4, PullRequestStatus::Draft),
+            (5, PullRequestStatus::Open),
+            (3, PullRequestStatus::Open)
+        ]
+    );
+}
+
+#[test]
 fn pull_requests_from_pages_maps_author_labels_branches_and_link() {
     let mut deleted_author = pull(9, "2026-11-01T08:00:00Z");
     deleted_author["user"] = Value::Null;
