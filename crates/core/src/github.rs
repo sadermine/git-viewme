@@ -77,7 +77,11 @@ impl GitHub {
         loop {
             let response = self.send_get(url).await?;
             let next = match response.headers().get("link") {
-                Some(value) => next_link(value.to_str().unwrap_or_default())?,
+                Some(value) => next_link(
+                    value
+                        .to_str()
+                        .map_err(|_| CoreError::other("GitHub sent an unreadable Link header"))?,
+                )?,
                 None => None,
             };
             pages.push(response.text().await?);
