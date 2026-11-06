@@ -31,6 +31,7 @@ Build a runnable debug app with `npm run tauri build -- --debug --no-bundle`. It
 ## Closed decisions
 
 - OAuth app with the device flow, not a GitHub App: a GitHub App cannot read a personal account's Projects. The app ships a client ID and no client secret.
+- The Tauri `identifier` is `git-viewme`, and Tauri names every app folder after it, such as the WebView2 data in `%LOCALAPPDATA%\git-viewme\EBWebView`. No `appDirectoriesOverride`.
 - `keyring` for the token, with no Linux system libraries, so `crates/core` builds and tests on a plain Linux runner.
 - `reqwest` with rustls, not native TLS, for the same reason.
 - `tauri.conf.json` sets no window `theme`, so the title bar follows the Windows app mode.
