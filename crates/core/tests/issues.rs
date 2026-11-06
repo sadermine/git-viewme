@@ -51,6 +51,24 @@ fn issues_from_pages_leaves_out_pull_requests() {
 }
 
 #[test]
+fn issues_from_pages_keeps_one_copy_of_an_issue_repeated_across_pages() {
+    let first = json!([
+        issue(3, "2026-11-06T10:00:00Z"),
+        issue(2, "2026-11-05T10:00:00Z")
+    ])
+    .to_string();
+    let second = json!([
+        issue(2, "2026-11-05T10:00:00Z"),
+        issue(1, "2026-11-04T10:00:00Z")
+    ])
+    .to_string();
+
+    let issues = issues_from_pages([first.as_str(), second.as_str()]).unwrap();
+
+    assert_eq!(numbers(&issues), [3, 2, 1]);
+}
+
+#[test]
 fn issues_from_pages_orders_most_recently_updated_first_across_pages() {
     let first = json!([
         issue(1, "2026-11-02T08:00:00Z"),

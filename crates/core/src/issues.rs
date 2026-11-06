@@ -69,6 +69,10 @@ fn issues_from_nodes(nodes: Vec<IssueNode>) -> Vec<Issue> {
             html_url: node.html_url,
         })
         .collect();
+    // Offset paging can return an issue on two pages when another moves above it mid-fetch, and
+    // the view keys its rows by number.
+    issues.sort_by_key(|issue| issue.number);
+    issues.dedup_by_key(|issue| issue.number);
     issues.sort_by(|a, b| {
         b.updated_at
             .cmp(&a.updated_at)
