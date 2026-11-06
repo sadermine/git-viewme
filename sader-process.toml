@@ -30,7 +30,7 @@ command = "cargo test -p git-viewme-core"
 # Only the token guard's files read the token, so a new reader elsewhere fails here instead of
 # passing at prototype with no security review.
 [[pre_push]]
-command = "! git grep -nE 'load_token|[.]secret[(]' -- crates src-tauri ':!crates/core/src/token.rs' ':!crates/core/src/github.rs' ':!crates/core/src/auth.rs'"
+command = "bash tools/check-token-readers.sh"
 shell = "bash"
 
 [[pre_push]]

@@ -1,0 +1,2 @@
+# bash reads a carriage return as part of each command, so scripts keep LF on every checkout.
+*.sh text eol=lf
