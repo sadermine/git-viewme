@@ -49,7 +49,6 @@
     color: var(--text-muted);
   }
   .tab.active {
-    margin-bottom: -1px;
     background: var(--bg);
     color: var(--text);
     box-shadow: inset 0 2px 0 var(--accent);
