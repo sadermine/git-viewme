@@ -69,7 +69,7 @@
         <li><button type="button" class="link" onclick={() => api.openExternal(REGISTER_URL)}>Register a new OAuth app on GitHub</button>. Any name and homepage URL will do.</li>
         <li>Tick <strong>Enable Device Flow</strong>.</li>
         <li>Leave <strong>Expire user access tokens</strong> unticked. git-viewme reads no refresh token, so an expiring token would send you back to sign-in every 8 hours.</li>
-        <li>git-viewme uses no redirect URI. Click <strong>Delete</strong> on the empty <strong>Redirect URI</strong> row. If GitHub still asks for one, enter <span class="mono">http://localhost</span>.</li>
+        <li>GitHub requires a <strong>Redirect URI</strong>. Enter <span class="mono">http://localhost</span>; git-viewme never uses it.</li>
         <li>Copy the <strong>Client ID</strong> from the app's page and enter it below.</li>
       </ol>
       <label>
