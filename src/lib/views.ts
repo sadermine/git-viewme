@@ -3,6 +3,7 @@ import type { Repo } from './types';
 import type { RepoTabState } from './workspace.svelte';
 import FilesView from './views/FilesView.svelte';
 import ProjectView from './views/ProjectView.svelte';
+import PullRequestsView from './views/PullRequestsView.svelte';
 
 export type ViewProps = {
   repo: Repo;
@@ -15,6 +16,7 @@ export type ViewProps = {
 export const VIEWS = [
   { id: 'files', label: 'Files', component: FilesView },
   { id: 'project', label: 'Project', component: ProjectView },
+  { id: 'pulls', label: 'Pull requests', component: PullRequestsView },
 ] as const satisfies readonly { id: string; label: string; component: Component<ViewProps> }[];
 
 export type ViewId = (typeof VIEWS)[number]['id'];

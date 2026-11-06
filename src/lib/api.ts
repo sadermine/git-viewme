@@ -7,6 +7,8 @@ import type {
   DevicePrompt,
   FileContent,
   ProjectRef,
+  PullRequest,
+  PullRequestState,
   Repo,
   RepoRef,
   TreeEntry,
@@ -70,6 +72,9 @@ export const fileContent = (repo: RepoRef, branch: string, path: string) =>
   call<FileContent>('file_content', { repo, branch, path });
 
 export const projectBoard = (project: ProjectRef) => call<Board>('project_board', { project });
+
+export const listPullRequests = (repo: RepoRef, state: PullRequestState) =>
+  call<PullRequest[]>('list_pull_requests', { repo, state });
 
 /** Opens a GitHub page in the system browser. The capability allows https://github.com only. */
 export const openExternal = (url: string) => openUrl(url);

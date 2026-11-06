@@ -2,8 +2,8 @@
 //! GitHub logic stays in the crate a hosted version can reuse.
 
 use git_viewme_core::{
-    Board, ClientId, CoreError, DevicePrompt, FileContent, GitHub, ProjectRef, Repo, RepoRef,
-    TreeEntry,
+    Board, ClientId, CoreError, DevicePrompt, FileContent, GitHub, ProjectRef, PullRequest,
+    PullRequestState, Repo, RepoRef, TreeEntry,
 };
 use tauri::State;
 use tauri::ipc::Channel;
@@ -70,6 +70,15 @@ async fn project_board(github: State<'_, GitHub>, project: ProjectRef) -> Result
     github.project_board(&project).await
 }
 
+#[tauri::command]
+async fn list_pull_requests(
+    github: State<'_, GitHub>,
+    repo: RepoRef,
+    state: PullRequestState,
+) -> Result<Vec<PullRequest>, CoreError> {
+    github.list_pull_requests(&repo, state).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -84,7 +93,8 @@ pub fn run() {
             list_repos,
             file_tree,
             file_content,
-            project_board
+            project_board,
+            list_pull_requests
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
