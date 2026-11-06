@@ -2,6 +2,7 @@ import type { Component } from 'svelte';
 import type { Repo } from './types';
 import type { RepoTabState } from './workspace.svelte';
 import FilesView from './views/FilesView.svelte';
+import ProjectView from './views/ProjectView.svelte';
 
 export type ViewProps = {
   repo: Repo;
@@ -13,6 +14,7 @@ export type ViewProps = {
  *  view is one entry here and one component. */
 export const VIEWS = [
   { id: 'files', label: 'Files', component: FilesView },
+  { id: 'project', label: 'Project', component: ProjectView },
 ] as const satisfies readonly { id: string; label: string; component: Component<ViewProps> }[];
 
 export type ViewId = (typeof VIEWS)[number]['id'];
