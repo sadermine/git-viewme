@@ -12,9 +12,9 @@ tier = "prototype"
 # The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
 [[guarded]]
 id = "token"
-rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store."
-points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in"]
-paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs"]
+rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store and GitHub's API."
+points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send"]
+paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs"]
 
 # CLAUDE.md, Commands, gives each check's prerequisites. The first five mirror ci.yml's steps.
 
