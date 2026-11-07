@@ -6,6 +6,8 @@ import type {
   CoreError,
   DevicePrompt,
   FileContent,
+  Issue,
+  IssueState,
   ProjectRef,
   Repo,
   RepoRef,
@@ -70,6 +72,9 @@ export const fileContent = (repo: RepoRef, branch: string, path: string) =>
   call<FileContent>('file_content', { repo, branch, path });
 
 export const projectBoard = (project: ProjectRef) => call<Board>('project_board', { project });
+
+export const listIssues = (repo: RepoRef, state: IssueState) =>
+  call<Issue[]>('list_issues', { repo, state });
 
 /** Opens a GitHub page in the system browser. The capability allows https://github.com only. */
 export const openExternal = (url: string) => openUrl(url);
