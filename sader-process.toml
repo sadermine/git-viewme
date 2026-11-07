@@ -5,7 +5,18 @@
 board = false
 platforms = ["linux", "windows"]
 
-# CLAUDE.md, Commands, gives each check's prerequisites. The first six mirror ci.yml's steps.
+# Every card gets the prototype checks, except one that changes a [[guarded]] path, which runs at
+# gold.
+tier = "prototype"
+
+# The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
+[[guarded]]
+id = "token"
+rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store and GitHub's API."
+points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send"]
+paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs"]
+
+# CLAUDE.md, Commands, gives each check's prerequisites. The first seven mirror ci.yml's steps.
 
 [[pre_push]]
 command = "cargo fmt --check"
@@ -15,6 +26,12 @@ command = "cargo clippy -p git-viewme-core"
 
 [[pre_push]]
 command = "cargo test -p git-viewme-core"
+
+# Only the token guard's files read the token, so a new reader elsewhere fails here instead of
+# passing at prototype with no security review.
+[[pre_push]]
+command = "bash tools/check-token-readers.sh"
+shell = "bash"
 
 [[pre_push]]
 command = "npm ci"
@@ -30,7 +47,7 @@ command = "npm test"
 command = "cargo clippy -p git-viewme"
 platforms = ["windows"]
 
-# The prototype spec's "CI until release" section chooses this deviation. The pull request that
-# adds this table records Don's approval (sader-process standard, rule 1).
+# The "CI until release" section of git-viewme/prototype-spec.md (sadermine/project-documentation)
+# chooses this deviation.
 [ci]
 deviations = ["non-dotnet-checks"]
