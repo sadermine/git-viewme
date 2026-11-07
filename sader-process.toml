@@ -47,6 +47,7 @@ command = "npm test"
 command = "cargo clippy -p git-viewme"
 platforms = ["windows"]
 
-# The prototype spec's "CI until release" section chooses this deviation.
+# The "CI until release" section of git-viewme/prototype-spec.md (sadermine/project-documentation)
+# chooses this deviation.
 [ci]
 deviations = ["non-dotnet-checks"]
