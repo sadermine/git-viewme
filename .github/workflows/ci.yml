@@ -69,3 +69,5 @@ jobs:
       - run: npm ci # non-dotnet-checks
 
       - run: npm run check # non-dotnet-checks
+
+      - run: npm test # non-dotnet-checks
