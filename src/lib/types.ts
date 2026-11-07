@@ -27,6 +27,17 @@ export type Column = { name: string; cards: Card[] };
 
 export type Board = { columns: Column[] };
 
+export type IssueState = 'open' | 'closed';
+
+export type Issue = {
+  number: number;
+  title: string;
+  author: string;
+  labels: string[];
+  updated_at: string;
+  html_url: string;
+};
+
 export type DevicePrompt = { user_code: string; verification_uri: string; expires_in: number };
 
 export type CoreError =

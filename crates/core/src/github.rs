@@ -57,16 +57,47 @@ impl GitHub {
         segments: &[&str],
         query: &[(&str, &str)],
     ) -> Result<String, CoreError> {
-        let mut url = Url::parse(API).expect("the API base URL parses");
-        url.path_segments_mut()
-            .expect("the API base URL has a path")
-            .extend(segments);
+        Ok(self
+            .send_get(api_url(segments, query))
+            .await?
+            .text()
+            .await?)
+    }
+
+    /// Fetches every page of a REST list by following the `next` link in each `Link` header.
+    /// GitHub refuses a `page` number past 99 on large lists, so offset paging cannot reach the
+    /// end of them.
+    pub(crate) async fn get_pages(
+        &self,
+        segments: &[&str],
+        query: &[(&str, &str)],
+    ) -> Result<Vec<String>, CoreError> {
+        let mut url = api_url(segments, query);
+        let mut pages = Vec::new();
+        loop {
+            let response = self.send_get(url).await?;
+            let next = match response.headers().get("link") {
+                Some(value) => next_link(
+                    value
+                        .to_str()
+                        .map_err(|_| CoreError::other("GitHub sent an unreadable Link header"))?,
+                )?,
+                None => None,
+            };
+            pages.push(response.text().await?);
+            match next {
+                Some(next) => url = next,
+                None => return Ok(pages),
+            }
+        }
+    }
+
+    async fn send_get(&self, url: Url) -> Result<Response, CoreError> {
         let request = self
             .http
             .get(url)
-            .query(query)
             .header("Accept", "application/vnd.github+json");
-        Ok(self.send(request).await?.text().await?)
+        self.send(request).await
     }
 
     /// Runs a GraphQL query and returns the response body. GitHub reports most GraphQL failures
@@ -123,6 +154,36 @@ impl GitHub {
     }
 }
 
+fn api_url(segments: &[&str], query: &[(&str, &str)]) -> Url {
+    let mut url = Url::parse(API).expect("the API base URL parses");
+    url.path_segments_mut()
+        .expect("the API base URL has a path")
+        .extend(segments);
+    url.query_pairs_mut().extend_pairs(query);
+    url
+}
+
+/// The `rel="next"` URL of a `Link` header. `send` attaches the token to whatever URL it is given,
+/// so a next link that leaves the API is refused rather than followed.
+fn next_link(header: &str) -> Result<Option<Url>, CoreError> {
+    let Some(target) = header.split(',').find_map(|link| {
+        let (target, params) = link.split_once(';')?;
+        params
+            .split(';')
+            .any(|param| param.trim() == r#"rel="next""#)
+            .then(|| target.trim().trim_start_matches('<').trim_end_matches('>'))
+    }) else {
+        return Ok(None);
+    };
+    let api = Url::parse(API).expect("the API base URL parses");
+    match Url::parse(target) {
+        Ok(url) if url.origin() == api.origin() => Ok(Some(url)),
+        _ => Err(CoreError::other(format!(
+            "GitHub sent a next page link outside {API}: {target}"
+        ))),
+    }
+}
+
 #[derive(Deserialize)]
 struct GraphQlErrors {
     #[serde(default)]
@@ -134,4 +195,38 @@ struct GraphQlError {
     message: String,
     #[serde(rename = "type")]
     kind: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_link;
+
+    #[test]
+    fn next_link_follows_the_cursor_in_a_link_header() {
+        let header = r#"<https://api.github.com/repositories/1/issues?per_page=100&after=Y3Vyc29y>; rel="next", <https://api.github.com/repositories/1/issues?per_page=100&before=Y3Vyc29y>; rel="prev""#;
+        let next = next_link(header).unwrap().unwrap();
+        assert_eq!(
+            next.as_str(),
+            "https://api.github.com/repositories/1/issues?per_page=100&after=Y3Vyc29y"
+        );
+    }
+
+    #[test]
+    fn next_link_is_none_on_the_last_page() {
+        let header = r#"<https://api.github.com/repositories/1/issues?page=1>; rel="first", <https://api.github.com/repositories/1/issues?before=Y3Vyc29y>; rel="prev""#;
+        assert_eq!(next_link(header).unwrap(), None);
+    }
+
+    #[test]
+    fn next_link_refuses_a_link_outside_the_api() {
+        for target in [
+            "https://evil.example/issues?after=x",
+            "http://api.github.com/issues?after=x",
+            "https://api.github.com.evil.example/issues?after=x",
+            "https://api.github.com:8443/issues?after=x",
+        ] {
+            let header = format!(r#"<{target}>; rel="next""#);
+            assert!(next_link(&header).is_err(), "followed {target}");
+        }
+    }
 }
