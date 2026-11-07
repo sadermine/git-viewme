@@ -6,7 +6,7 @@ board = false
 platforms = ["linux", "windows"]
 
 # Every card gets the prototype checks, except one that changes a [[guarded]] path, which runs at
-# gold. Don H approved both on 2026-11-06 (sadermine/git-viewme #2).
+# gold.
 tier = "prototype"
 
 # The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
@@ -47,7 +47,6 @@ command = "npm test"
 command = "cargo clippy -p git-viewme"
 platforms = ["windows"]
 
-# The prototype spec's "CI until release" section chooses this deviation. The pull request that
-# adds this table records Don's approval (sader-process standard, rule 1).
+# The prototype spec's "CI until release" section chooses this deviation.
 [ci]
 deviations = ["non-dotnet-checks"]
