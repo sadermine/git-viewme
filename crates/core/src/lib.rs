@@ -7,6 +7,7 @@ mod board;
 mod error;
 mod files;
 mod github;
+mod issues;
 mod pulls;
 mod repos;
 mod settings;
@@ -17,6 +18,7 @@ pub use board::board_from_pages;
 pub use error::{CoreError, error_for_status};
 pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
+pub use issues::issues_from_pages;
 pub use pulls::pull_requests_from_pages;
 pub use repos::repos_from_pages;
 pub use settings::{ClientId, client_id, save_client_id};
@@ -86,6 +88,34 @@ pub struct Card {
     pub number: Option<u32>,
     pub url: String,
     pub labels: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IssueState {
+    Open,
+    Closed,
+}
+
+impl IssueState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Closed => "closed",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Issue {
+    pub number: u32,
+    pub title: String,
+    /// The author's login.
+    pub author: String,
+    pub labels: Vec<String>,
+    /// ISO 8601 in UTC, as GitHub sends it, so it sorts as text.
+    pub updated_at: String,
+    pub html_url: String,
 }
 
 /// The `state` GitHub filters a pull request list by, and the state each pull request reports.

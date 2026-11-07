@@ -5,7 +5,7 @@
 board = false
 platforms = ["linux", "windows"]
 
-# CLAUDE.md, Commands, gives each check's prerequisites. The first five mirror ci.yml's steps.
+# CLAUDE.md, Commands, gives each check's prerequisites. The first six mirror ci.yml's steps.
 
 [[pre_push]]
 command = "cargo fmt --check"
@@ -21,6 +21,9 @@ command = "npm ci"
 
 [[pre_push]]
 command = "npm run check"
+
+[[pre_push]]
+command = "npm test"
 
 # CI leaves src-tauri out, and on Linux it needs the WebKitGTK system packages.
 [[pre_push]]

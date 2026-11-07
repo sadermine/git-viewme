@@ -6,6 +6,8 @@ import type {
   CoreError,
   DevicePrompt,
   FileContent,
+  Issue,
+  IssueState,
   ProjectRef,
   PullRequest,
   PullRequestState,
@@ -72,6 +74,9 @@ export const fileContent = (repo: RepoRef, branch: string, path: string) =>
   call<FileContent>('file_content', { repo, branch, path });
 
 export const projectBoard = (project: ProjectRef) => call<Board>('project_board', { project });
+
+export const listIssues = (repo: RepoRef, state: IssueState) =>
+  call<Issue[]>('list_issues', { repo, state });
 
 export const listPullRequests = (repo: RepoRef, state: PullRequestState) =>
   call<PullRequest[]>('list_pull_requests', { repo, state });
