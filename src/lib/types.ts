@@ -38,6 +38,22 @@ export type Issue = {
   html_url: string;
 };
 
+export type PullRequestState = 'open' | 'closed';
+
+export type PullRequestStatus = 'open' | 'draft' | 'merged' | 'closed';
+
+export type PullRequest = {
+  number: number;
+  title: string;
+  author: string;
+  labels: string[];
+  head: string;
+  base: string;
+  status: PullRequestStatus;
+  updated_at: string;
+  html_url: string;
+};
+
 export type DevicePrompt = { user_code: string; verification_uri: string; expires_in: number };
 
 export type CoreError =

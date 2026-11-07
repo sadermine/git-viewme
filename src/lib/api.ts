@@ -9,6 +9,8 @@ import type {
   Issue,
   IssueState,
   ProjectRef,
+  PullRequest,
+  PullRequestState,
   Repo,
   RepoRef,
   TreeEntry,
@@ -75,6 +77,9 @@ export const projectBoard = (project: ProjectRef) => call<Board>('project_board'
 
 export const listIssues = (repo: RepoRef, state: IssueState) =>
   call<Issue[]>('list_issues', { repo, state });
+
+export const listPullRequests = (repo: RepoRef, state: PullRequestState) =>
+  call<PullRequest[]>('list_pull_requests', { repo, state });
 
 /** Opens a GitHub page in the system browser. The capability allows https://github.com only. */
 export const openExternal = (url: string) => openUrl(url);

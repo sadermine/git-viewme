@@ -3,7 +3,7 @@
 
 use git_viewme_core::{
     Board, ClientId, CoreError, DevicePrompt, FileContent, GitHub, Issue, IssueState, ProjectRef,
-    Repo, RepoRef, TreeEntry,
+    PullRequest, PullRequestState, Repo, RepoRef, TreeEntry,
 };
 use tauri::State;
 use tauri::ipc::Channel;
@@ -79,6 +79,15 @@ async fn list_issues(
     github.list_issues(&repo, state).await
 }
 
+#[tauri::command]
+async fn list_pull_requests(
+    github: State<'_, GitHub>,
+    repo: RepoRef,
+    state: PullRequestState,
+) -> Result<Vec<PullRequest>, CoreError> {
+    github.list_pull_requests(&repo, state).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -94,7 +103,8 @@ pub fn run() {
             file_tree,
             file_content,
             project_board,
-            list_issues
+            list_issues,
+            list_pull_requests
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
