@@ -14,7 +14,7 @@ export function describeError(error: CoreError, what: string): string {
     case 'missing_scope':
       return 'This sign-in does not grant the access git-viewme needs. Sign out and sign in again.';
     case 'forbidden':
-      return `You do not have permission to change the ${what}.`;
+      return `GitHub refused access to the ${what}. ${error.message}`;
     case 'no_client_id':
       return 'Enter the client ID of your GitHub OAuth app first.';
     case 'client_id_rejected':

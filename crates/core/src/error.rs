@@ -17,8 +17,11 @@ pub enum CoreError {
     /// The token lacks a scope the request needs, such as `project` on a token from a sign-in
     /// that asked for `read:project`. Signing in again grants it. The stored token is kept.
     MissingScope,
-    /// The user may read the thing but not change it.
-    Forbidden,
+    /// GitHub refused the request, such as a change to a project the user can only read, or a read
+    /// from an organisation that enforces SAML single sign-on. `message` is GitHub's reason.
+    Forbidden {
+        message: String,
+    },
     /// No client ID is saved, so sign-in cannot start.
     NoClientId,
     /// GitHub does not know the saved client ID, or its OAuth app has device flow turned off.
@@ -92,7 +95,9 @@ pub fn error_for_graphql(body: &str, reset_at: Option<u64>, now: u64) -> Result<
             reset_at: reset_at.unwrap_or(now + 60),
         },
         Some("INSUFFICIENT_SCOPES") => CoreError::MissingScope,
-        Some("FORBIDDEN") => CoreError::Forbidden,
+        Some("FORBIDDEN") => CoreError::Forbidden {
+            message: first.message.clone(),
+        },
         _ => CoreError::other(first.message.clone()),
     })
 }

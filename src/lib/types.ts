@@ -67,7 +67,7 @@ export type CoreError =
   | { kind: 'network' }
   | { kind: 'not_found' }
   | { kind: 'missing_scope' }
-  | { kind: 'forbidden' }
+  | { kind: 'forbidden'; message: string }
   | { kind: 'no_client_id' }
   | { kind: 'client_id_rejected' }
   | { kind: 'other'; message: string };

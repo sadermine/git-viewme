@@ -110,7 +110,22 @@ fn error_for_graphql_forbidden_mutation_is_forbidden() {
 
     assert_eq!(
         error_for_graphql(body, None, NOW),
-        Err(CoreError::Forbidden)
+        Err(CoreError::Forbidden {
+            message: "sader-agents does not have the correct permissions to execute `ClearProjectV2ItemFieldValue`".to_owned()
+        })
+    );
+}
+
+#[test]
+fn error_for_graphql_saml_protected_read_is_forbidden_with_githubs_reason() {
+    // The shape GitHub sends for a read from an organisation that enforces SAML single sign-on.
+    let body = r#"{"data":{"organization":null},"errors":[{"type":"FORBIDDEN","path":["organization"],"extensions":{"saml_failure":true},"locations":[{"line":2,"column":3}],"message":"Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization."}]}"#;
+
+    assert_eq!(
+        error_for_graphql(body, None, NOW),
+        Err(CoreError::Forbidden {
+            message: "Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.".to_owned()
+        })
     );
 }
 
