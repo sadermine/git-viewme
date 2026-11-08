@@ -60,7 +60,7 @@
 
 <main class="sign-in">
   <h1>git-viewme</h1>
-  <p class="lead">Browse your GitHub repositories and their projects. git-viewme only reads; it never changes anything on GitHub.</p>
+  <p class="lead">Browse your GitHub repositories and their projects. The only change git-viewme makes on GitHub is moving a project card to another lane.</p>
 
   {#if step.kind === 'entering'}
     <form class="client-id" onsubmit={save}>

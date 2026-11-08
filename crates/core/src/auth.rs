@@ -7,7 +7,7 @@ use crate::github::now;
 use crate::token::{AccessToken, store_token};
 use crate::{CoreError, GitHub, client_id};
 
-const SCOPES: &str = "repo read:project";
+const SCOPES: &str = "repo project";
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
 const DEVICE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";

@@ -1,5 +1,5 @@
 use reqwest::header::HeaderMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Every failure the interface can show. Views choose their message and their Retry from the
 /// variant, never from the text.
@@ -14,6 +14,14 @@ pub enum CoreError {
     },
     Network,
     NotFound,
+    /// The token lacks a scope the request needs, such as `project` on a token from a sign-in
+    /// that asked for `read:project`. Signing in again grants it. The stored token is kept.
+    MissingScope,
+    /// GitHub refused the request, such as a change to a project the user can only read, or a read
+    /// from an organisation that enforces SAML single sign-on. `message` is GitHub's reason.
+    Forbidden {
+        message: String,
+    },
     /// No client ID is saved, so sign-in cannot start.
     NoClientId,
     /// GitHub does not know the saved client ID, or its OAuth app has device flow turned off.
@@ -69,4 +77,40 @@ fn message_of(body: &str) -> String {
         .ok()
         .and_then(|json| json.get("message")?.as_str().map(str::to_owned))
         .unwrap_or_else(|| body.chars().take(200).collect())
+}
+
+/// Maps the `errors` list GitHub sends in a GraphQL response, with status 200, to the error the
+/// interface shows. `reset_at` is the `x-ratelimit-reset` header and `now` seconds since the Unix
+/// epoch.
+pub fn error_for_graphql(body: &str, reset_at: Option<u64>, now: u64) -> Result<(), CoreError> {
+    let errors = serde_json::from_str::<GraphQlErrors>(body)
+        .map_err(|error| CoreError::other(format!("GitHub sent an unreadable response: {error}")))?
+        .errors;
+    let Some(first) = errors.first() else {
+        return Ok(());
+    };
+    Err(match first.kind.as_deref() {
+        Some("NOT_FOUND") => CoreError::NotFound,
+        Some("RATE_LIMITED") => CoreError::RateLimited {
+            reset_at: reset_at.unwrap_or(now + 60),
+        },
+        Some("INSUFFICIENT_SCOPES") => CoreError::MissingScope,
+        Some("FORBIDDEN") => CoreError::Forbidden {
+            message: first.message.clone(),
+        },
+        _ => CoreError::other(first.message.clone()),
+    })
+}
+
+#[derive(Deserialize)]
+struct GraphQlErrors {
+    #[serde(default)]
+    errors: Vec<GraphQlError>,
+}
+
+#[derive(Deserialize)]
+struct GraphQlError {
+    message: String,
+    #[serde(rename = "type")]
+    kind: Option<String>,
 }

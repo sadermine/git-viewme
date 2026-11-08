@@ -1,0 +1,118 @@
+{
+  "data": {
+    "repositoryOwner": {
+      "projectV2": {
+        "id": "PVT_kwDNJr_NE10",
+        "url": "https://github.com/orgs/github/projects/4247",
+        "field": {
+          "id": "PVTSSF_lADNJr_NE13Nml4",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Up Next"
+            },
+            {
+              "id": "bebfd2a1",
+              "name": "Exploring"
+            },
+            {
+              "id": "7bdf8bc2",
+              "name": "Shipped"
+            },
+            {
+              "id": "0b6e37be",
+              "name": "Paused"
+            }
+          ]
+        },
+        "items": {
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": null
+          },
+          "nodes": [
+            {
+              "id": "PVTI_lADNJr_NE13OBakjpw",
+              "isArchived": false,
+              "fullDatabaseId": "94970791",
+              "fieldValueByName": {
+                "name": "Paused"
+              },
+              "content": {
+                "title": "Report code scanning status information at the organisation level [GA]",
+                "number": 1093,
+                "url": "https://github.com/github/roadmap/issues/1093",
+                "labels": {
+                  "nodes": [
+                    {
+                      "name": "GA"
+                    },
+                    {
+                      "name": "Enterprise"
+                    },
+                    {
+                      "name": "GitHub Advanced Security (GHAS)"
+                    },
+                    {
+                      "name": "Paused"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "PVTI_lADNJr_NE13OAALQrQ",
+              "isArchived": false,
+              "fullDatabaseId": "184493",
+              "fieldValueByName": {
+                "name": "Up Next"
+              },
+              "content": {
+                "title": "Push Protections (Beta)",
+                "number": 166,
+                "url": "https://github.com/github/roadmap/issues/166",
+                "labels": {
+                  "nodes": [
+                    {
+                      "name": "cloud"
+                    },
+                    {
+                      "name": "Preview"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "id": "PVTI_lADNJr_NE13OA0SSnA",
+              "isArchived": false,
+              "fullDatabaseId": "54825628",
+              "fieldValueByName": null,
+              "content": {
+                "title": "Issues: Nested filtering with `AND` `OR` operators",
+                "number": 928,
+                "url": "https://github.com/github/roadmap/issues/928",
+                "labels": {
+                  "nodes": [
+                    {
+                      "name": "cloud"
+                    },
+                    {
+                      "name": "all"
+                    },
+                    {
+                      "name": "Preview"
+                    },
+                    {
+                      "name": "Shipped"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

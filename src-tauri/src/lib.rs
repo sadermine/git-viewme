@@ -2,8 +2,8 @@
 //! GitHub logic stays in the crate a hosted version can reuse.
 
 use git_viewme_core::{
-    Board, ClientId, CoreError, DevicePrompt, FileContent, GitHub, Issue, IssueState, ProjectRef,
-    PullRequest, PullRequestState, Repo, RepoRef, TreeEntry,
+    Board, CardMove, ClientId, CoreError, DevicePrompt, FileContent, GitHub, Issue, IssueState,
+    ProjectRef, PullRequest, PullRequestState, Repo, RepoRef, TreeEntry,
 };
 use tauri::State;
 use tauri::ipc::Channel;
@@ -71,6 +71,11 @@ async fn project_board(github: State<'_, GitHub>, project: ProjectRef) -> Result
 }
 
 #[tauri::command]
+async fn move_card(github: State<'_, GitHub>, card_move: CardMove) -> Result<(), CoreError> {
+    github.move_card(&card_move).await
+}
+
+#[tauri::command]
 async fn list_issues(
     github: State<'_, GitHub>,
     repo: RepoRef,
@@ -103,6 +108,7 @@ pub fn run() {
             file_tree,
             file_content,
             project_board,
+            move_card,
             list_issues,
             list_pull_requests
         ])
