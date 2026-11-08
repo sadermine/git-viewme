@@ -21,11 +21,16 @@ export type FileContent =
   | { kind: 'binary'; size: number }
   | { kind: 'too_large'; size: number };
 
-export type Card = { title: string; number: number | null; url: string; labels: string[] };
+export type Card = { item_id: string; title: string; number: number | null; url: string; labels: string[] };
 
-export type Column = { name: string; cards: Card[] };
+/** `option_id` is null for "No status". */
+export type Column = { name: string; option_id: string | null; cards: Card[] };
 
-export type Board = { columns: Column[] };
+/** `status_field_id` is null when the project has no Status field, and then no card moves. */
+export type Board = { project_id: string; status_field_id: string | null; columns: Column[] };
+
+/** Sets a card's Status to `option_id`, or clears it when that is null. */
+export type CardMove = { project_id: string; item_id: string; field_id: string; option_id: string | null };
 
 export type IssueState = 'open' | 'closed';
 
@@ -61,6 +66,8 @@ export type CoreError =
   | { kind: 'rate_limited'; reset_at: number }
   | { kind: 'network' }
   | { kind: 'not_found' }
+  | { kind: 'missing_scope' }
+  | { kind: 'forbidden' }
   | { kind: 'no_client_id' }
   | { kind: 'client_id_rejected' }
   | { kind: 'other'; message: string };

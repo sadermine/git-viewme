@@ -11,6 +11,10 @@ export function describeError(error: CoreError, what: string): string {
       return 'GitHub could not be reached. Check the network connection, then retry.';
     case 'not_found':
       return `GitHub could not find the ${what}. It may have moved, or this account cannot see it.`;
+    case 'missing_scope':
+      return 'This sign-in does not grant the access git-viewme needs. Sign out and sign in again.';
+    case 'forbidden':
+      return `You do not have permission to change the ${what}.`;
     case 'no_client_id':
       return 'Enter the client ID of your GitHub OAuth app first.';
     case 'client_id_rejected':

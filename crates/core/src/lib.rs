@@ -14,8 +14,8 @@ mod settings;
 mod token;
 
 pub use auth::DevicePrompt;
-pub use board::board_from_pages;
-pub use error::{CoreError, error_for_status};
+pub use board::{board_from_pages, card_move_request};
+pub use error::{CoreError, error_for_graphql, error_for_status};
 pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
 pub use issues::issues_from_pages;
@@ -73,21 +73,39 @@ pub enum FileContent {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Board {
+    /// The project's node ID, which a move names.
+    pub project_id: String,
+    /// The node ID of the `Status` single-select field. `None` when the project has none, and
+    /// then no card can be moved.
+    pub status_field_id: Option<String>,
     pub columns: Vec<Column>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Column {
     pub name: String,
+    /// The `Status` option the column shows. `None` for "No status".
+    pub option_id: Option<String>,
     pub cards: Vec<Card>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Card {
+    /// The project item's node ID, unique on the board.
+    pub item_id: String,
     pub title: String,
     pub number: Option<u32>,
     pub url: String,
     pub labels: Vec<String>,
+}
+
+/// Sets one project item's `Status` to an option, or clears it when `option_id` is `None`.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct CardMove {
+    pub project_id: String,
+    pub item_id: String,
+    pub field_id: String,
+    pub option_id: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -3,6 +3,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type {
   Board,
+  CardMove,
   CoreError,
   DevicePrompt,
   FileContent,
@@ -21,6 +22,8 @@ const ERROR_KINDS: ReadonlySet<string> = new Set<CoreError['kind']>([
   'rate_limited',
   'network',
   'not_found',
+  'missing_scope',
+  'forbidden',
   'no_client_id',
   'client_id_rejected',
   'other',
@@ -74,6 +77,8 @@ export const fileContent = (repo: RepoRef, branch: string, path: string) =>
   call<FileContent>('file_content', { repo, branch, path });
 
 export const projectBoard = (project: ProjectRef) => call<Board>('project_board', { project });
+
+export const moveCard = (cardMove: CardMove) => call<void>('move_card', { cardMove });
 
 export const listIssues = (repo: RepoRef, state: IssueState) =>
   call<Issue[]>('list_issues', { repo, state });

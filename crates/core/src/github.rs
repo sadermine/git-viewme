@@ -1,11 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::{RequestBuilder, Response, Url};
-use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::token::{delete_token, load_token};
-use crate::{CoreError, error_for_status};
+use crate::{CoreError, error_for_graphql, error_for_status};
 
 const API: &str = "https://api.github.com";
 
@@ -100,8 +99,8 @@ impl GitHub {
         self.send(request).await
     }
 
-    /// Runs a GraphQL query and returns the response body. GitHub reports most GraphQL failures
-    /// with status 200 and an `errors` list, so those are mapped here.
+    /// Runs a GraphQL query or mutation and returns the response body. GitHub reports most
+    /// GraphQL failures with status 200 and an `errors` list, so those are mapped here.
     pub(crate) async fn graphql(&self, query: &str, variables: Value) -> Result<String, CoreError> {
         let request = self
             .http
@@ -113,21 +112,8 @@ impl GitHub {
             .get("x-ratelimit-reset")
             .and_then(|value| value.to_str().ok()?.parse().ok());
         let body = response.text().await?;
-        let errors = serde_json::from_str::<GraphQlErrors>(&body)
-            .map_err(|error| {
-                CoreError::other(format!("GitHub sent an unreadable response: {error}"))
-            })?
-            .errors;
-        match errors.first() {
-            None => Ok(body),
-            Some(first) => Err(match first.kind.as_deref() {
-                Some("NOT_FOUND") => CoreError::NotFound,
-                Some("RATE_LIMITED") => CoreError::RateLimited {
-                    reset_at: reset_at.unwrap_or(now() + 60),
-                },
-                _ => CoreError::other(first.message.clone()),
-            }),
-        }
+        error_for_graphql(&body, reset_at, now())?;
+        Ok(body)
     }
 
     /// Fetches every page of a paged GraphQL connection. `page_info` points at the connection's
@@ -182,19 +168,6 @@ fn next_link(header: &str) -> Result<Option<Url>, CoreError> {
             "GitHub sent a next page link outside {API}: {target}"
         ))),
     }
-}
-
-#[derive(Deserialize)]
-struct GraphQlErrors {
-    #[serde(default)]
-    errors: Vec<GraphQlError>,
-}
-
-#[derive(Deserialize)]
-struct GraphQlError {
-    message: String,
-    #[serde(rename = "type")]
-    kind: Option<String>,
 }
 
 #[cfg(test)]
