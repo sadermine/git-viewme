@@ -1,8 +1,6 @@
 # This repository's settings for the sader skills. The keys are defined by
 # ~/.claude/rules/sader-process-standard.md.
 
-# git-viewme has no GitHub Projects board yet.
-board = false
 platforms = ["linux", "windows"]
 
 # Every card gets the prototype checks, except one that changes a [[guarded]] path, which runs at
