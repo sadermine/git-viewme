@@ -121,15 +121,10 @@ impl GitHub {
             )
             .await?;
         if let Some(pages) = changes {
-            let many = pages.bodies.len() > 1;
-            let changes = issue_changes_from_pages(pages.bodies.iter().map(String::as_str))?;
-            // `since` moves on only when the changes outgrow one page, so the next refresh sends
-            // the same URL again and its ETag earns the free 304.
-            if cache.merge(changes) && many {
-                cache.advance(pages.since);
-            } else {
-                cache.set_etag(pages.etag);
-            }
+            cache.merge(issue_changes_from_pages(
+                pages.bodies.iter().map(String::as_str),
+            )?);
+            cache.answered(pages.bodies.len(), pages.since, pages.etag);
         }
         Ok(())
     }

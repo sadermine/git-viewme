@@ -200,6 +200,29 @@ fn since_keeps_the_earliest_full_fetch_and_drops_the_etag_when_it_moves() {
 }
 
 #[test]
+fn answered_moves_since_only_past_one_page_even_when_no_list_changed() {
+    let mut cache = cached_issues();
+
+    cache.answered(1, "2026-11-08T13:00:00Z".into(), Some("W/\"a\"".into()));
+    assert_eq!(cache.since(), Some(SINCE));
+    assert_eq!(cache.etag(), Some("W/\"a\""));
+
+    // Two pages of pull request activity: no issue list changes, but the next refresh must not
+    // read both pages again.
+    let pull_requests = page(&[{
+        let mut pull_request = issue(9, "open", "2026-11-08T13:30:00Z");
+        pull_request["pull_request"] = json!({ "merged_at": null });
+        pull_request
+    }]);
+    assert!(!cache.merge(
+        issue_changes_from_pages([pull_requests.as_str(), pull_requests.as_str()]).unwrap()
+    ));
+    cache.answered(2, "2026-11-08T13:59:00Z".into(), Some("W/\"b\"".into()));
+    assert_eq!(cache.since(), Some("2026-11-08T13:59:00Z"));
+    assert_eq!(cache.etag(), None);
+}
+
+#[test]
 fn issue_counts_from_response_reads_open_and_closed() {
     let body = json!({
         "data": { "repository": {

@@ -123,8 +123,19 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
         self.since.as_deref()
     }
 
-    /// Moves `since` on, after a change answer grew past one page. The stored ETag was for the old
-    /// `since`, so it goes too.
+    /// Records a change answer to a request whose URL carries `since`. `since` moves on only when
+    /// the answer ran past one page, whatever it held, so the next refresh sends the same URL and
+    /// its ETag earns the free `304`. Pull requests on the issues endpoint change no list but still
+    /// count as pages.
+    pub fn answered(&mut self, pages: usize, since: String, etag: Option<String>) {
+        if pages > 1 {
+            self.advance(since);
+        } else {
+            self.etag = etag;
+        }
+    }
+
+    /// Moves `since` on. The stored ETag was for the old `since`, so it goes too.
     pub fn advance(&mut self, since: String) {
         self.since = Some(since);
         self.etag = None;
