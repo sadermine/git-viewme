@@ -22,12 +22,13 @@ impl GitHub {
     ) -> Result<Vec<Issue>, CoreError> {
         let cache = self.issue_cache(repo);
         let mut cache = cache.lock().await;
-        if cache.list(state).is_some() {
-            self.refresh_issues(repo, &mut cache).await?;
-        } else {
+        let mut fetched = Vec::new();
+        if cache.list(state).is_none() {
             let (issues, since) = self.fetch_issues(repo, state).await?;
             cache.replace(state, issues, since);
+            fetched.push(state);
         }
+        self.refresh_issues(repo, &mut cache, fetched).await?;
         Ok(cache.list(state).unwrap_or_default())
     }
 
@@ -54,7 +55,52 @@ impl GitHub {
     /// Merges the issues changed since the last fetch, in every state, so one closed since leaves
     /// Open and joins Closed. A deleted or transferred issue never shows up as changed, so the
     /// counts are checked after and a state whose count differs is fetched again in full.
+    /// `fetched` names the states just fetched in full. A full fetch misses issues that moved
+    /// while it paged, so each one's count is compared only after a change request has merged
+    /// them, and then recorded rather than checked.
     async fn refresh_issues(
+        &self,
+        repo: &RepoRef,
+        cache: &mut IssueCache,
+        mut fetched: Vec<IssueState>,
+    ) -> Result<(), CoreError> {
+        self.merge_issue_changes(repo, cache).await?;
+        let mut counts = self.issue_counts(repo).await?;
+        let differing: Vec<IssueState> = counts
+            .iter()
+            .filter(|(state, count)| {
+                !fetched.contains(state) && cache.count_differs(*state, *count)
+            })
+            .map(|(state, _)| *state)
+            .collect();
+        if !differing.is_empty() {
+            for state in differing {
+                let (issues, since) = self.fetch_issues(repo, state).await?;
+                cache.replace(state, issues, since);
+                fetched.push(state);
+            }
+            self.merge_issue_changes(repo, cache).await?;
+            counts = self.issue_counts(repo).await?;
+        }
+        for (state, count) in counts {
+            if fetched.contains(&state) {
+                cache.settle(state, count);
+            }
+        }
+        Ok(())
+    }
+
+    async fn issue_counts(&self, repo: &RepoRef) -> Result<[(IssueState, usize); 2], CoreError> {
+        let body = self
+            .graphql(
+                ISSUE_COUNTS,
+                json!({ "owner": repo.owner, "name": repo.name }),
+            )
+            .await?;
+        issue_counts_from_response(&body)
+    }
+
+    async fn merge_issue_changes(
         &self,
         repo: &RepoRef,
         cache: &mut IssueCache,
@@ -75,25 +121,14 @@ impl GitHub {
             )
             .await?;
         if let Some(pages) = changes {
+            let many = pages.bodies.len() > 1;
             let changes = issue_changes_from_pages(pages.bodies.iter().map(String::as_str))?;
-            // `since` moves on only when something changed, so an unchanged refresh sends the
-            // same URL again and its ETag earns the free 304.
-            if cache.merge(changes) {
+            // `since` moves on only when the changes outgrow one page, so the next refresh sends
+            // the same URL again and its ETag earns the free 304.
+            if cache.merge(changes) && many {
                 cache.advance(pages.since);
             } else {
                 cache.set_etag(pages.etag);
-            }
-        }
-        let body = self
-            .graphql(
-                ISSUE_COUNTS,
-                json!({ "owner": repo.owner, "name": repo.name }),
-            )
-            .await?;
-        for (state, count) in issue_counts_from_response(&body)? {
-            if cache.count_differs(state, count) {
-                let (issues, since) = self.fetch_issues(repo, state).await?;
-                cache.refetched(state, issues, since, count);
             }
         }
         Ok(())

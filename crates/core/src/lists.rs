@@ -39,8 +39,7 @@ pub struct ListCache<S, T> {
 
 struct List<T> {
     items: BTreeMap<u32, T>,
-    /// GitHub's count minus the fetched length, taken after a refetch, so a count that never
-    /// agrees with the list costs one refetch rather than one on every refresh.
+    /// GitHub's count minus the list's length, taken by `settle` after each full fetch.
     offset: i64,
 }
 
@@ -72,12 +71,11 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
     /// Stores a full fetch of `state`. `since` is the GitHub time the fetch started at, and the
     /// earliest one held is kept, because asking for changes from too early only repeats some.
     pub fn replace(&mut self, state: S, items: Vec<T>, since: String) {
-        let offset = self.lists.get(&state).map_or(0, |list| list.offset);
         let items = items
             .into_iter()
             .map(|item| (item.number(), item))
             .collect();
-        self.lists.insert(state, List { items, offset });
+        self.lists.insert(state, List { items, offset: 0 });
         if self.since.as_ref().is_none_or(|held| since < *held) {
             self.since = Some(since);
             self.etag = None;
@@ -111,10 +109,10 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
             .is_some_and(|list| i64::try_from(count).unwrap_or(i64::MAX) - list.offset != len(list))
     }
 
-    /// Stores a refetch of `state` made because its count differed, and keeps how far GitHub's
-    /// `count` still is from it.
-    pub fn refetched(&mut self, state: S, items: Vec<T>, since: String, count: usize) {
-        self.replace(state, items, since);
+    /// Records how far GitHub's `count` is from `state`'s list just after its full fetch, once the
+    /// changes made while it paged are merged. Some issues are counted but never listed, and this
+    /// keeps them from making the count differ on every refresh.
+    pub fn settle(&mut self, state: S, count: usize) {
         if let Some(list) = self.lists.get_mut(&state) {
             list.offset = i64::try_from(count).unwrap_or(i64::MAX) - len(list);
         }
@@ -125,8 +123,8 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
         self.since.as_deref()
     }
 
-    /// Moves `since` on, after a change request that changed the cache. The stored ETag was for
-    /// the old `since`, so it goes too.
+    /// Moves `since` on, after a change answer grew past one page. The stored ETag was for the old
+    /// `since`, so it goes too.
     pub fn advance(&mut self, since: String) {
         self.since = Some(since);
         self.etag = None;

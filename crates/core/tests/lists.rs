@@ -137,22 +137,51 @@ fn count_differs_when_an_issue_was_deleted_and_not_for_a_state_never_fetched() {
 }
 
 #[test]
-fn refetched_list_whose_count_never_agrees_is_not_refetched_again() {
+fn settle_after_merging_what_moved_while_paging_keeps_a_lasting_gap_from_refetching() {
+    // GitHub counts 4 open issues: #1 to #3, and one the REST list never returns. #3 moved to
+    // the top while the full fetch paged, so the fetch missed it.
     let open = page(&[
         issue(2, "open", "2026-11-06T10:00:00Z"),
         issue(1, "open", "2026-11-05T10:00:00Z"),
     ]);
     let mut cache = IssueCache::default();
-
-    cache.refetched(
+    cache.replace(
         IssueState::Open,
         issues_from_pages([open.as_str()]).unwrap(),
         SINCE.into(),
-        3,
+    );
+    let moved = page(&[issue(3, "open", "2026-11-08T12:00:30Z")]);
+    cache.merge(issue_changes_from_pages([moved.as_str()]).unwrap());
+
+    cache.settle(IssueState::Open, 4);
+
+    assert!(!cache.count_differs(IssueState::Open, 4));
+    assert!(
+        cache.count_differs(IssueState::Open, 3),
+        "a deletion still shows"
+    );
+    assert_eq!(numbers(cache.list(IssueState::Open)), Some(vec![3, 2, 1]));
+}
+
+#[test]
+fn replace_forgets_the_gap_settled_for_the_list_it_replaces() {
+    let open = page(&[issue(1, "open", "2026-11-05T10:00:00Z")]);
+    let mut cache = IssueCache::default();
+    cache.replace(
+        IssueState::Open,
+        issues_from_pages([open.as_str()]).unwrap(),
+        SINCE.into(),
+    );
+    cache.settle(IssueState::Open, 3);
+
+    cache.replace(
+        IssueState::Open,
+        issues_from_pages([open.as_str()]).unwrap(),
+        SINCE.into(),
     );
 
-    assert!(!cache.count_differs(IssueState::Open, 3));
-    assert!(cache.count_differs(IssueState::Open, 2));
+    assert!(cache.count_differs(IssueState::Open, 3));
+    assert!(!cache.count_differs(IssueState::Open, 1));
 }
 
 #[test]

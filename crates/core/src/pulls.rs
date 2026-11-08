@@ -14,9 +14,7 @@ impl GitHub {
     ) -> Result<Vec<PullRequest>, CoreError> {
         let cache = self.pull_request_cache(repo);
         let mut cache = cache.lock().await;
-        if cache.list(state).is_some() {
-            self.refresh_pull_requests(repo, &mut cache).await?;
-        } else {
+        if cache.list(state).is_none() {
             let pages = self
                 .get_pages(
                     &["repos", &repo.owner, &repo.name, "pulls"],
@@ -31,6 +29,9 @@ impl GitHub {
             let pulls = pull_requests_from_pages(pages.bodies.iter().map(String::as_str))?;
             cache.replace(state, pulls, pages.since);
         }
+        // Right after a full fetch this merges what moved while it paged, and leaves the ETag
+        // that makes the first switch free.
+        self.refresh_pull_requests(repo, &mut cache).await?;
         Ok(cache.list(state).unwrap_or_default())
     }
 
