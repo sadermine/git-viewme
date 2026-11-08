@@ -99,13 +99,13 @@ pub struct Card {
     pub labels: Vec<String>,
 }
 
-/// Sets one project item's `Status` to an option, or clears it when `option_id` is `None`.
+/// Sets one project item's `Status` to an option. Nothing clears it, so no card moves to "No status".
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct CardMove {
     pub project_id: String,
     pub item_id: String,
     pub field_id: String,
-    pub option_id: Option<String>,
+    pub option_id: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

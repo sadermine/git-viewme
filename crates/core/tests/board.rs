@@ -61,12 +61,9 @@ fn board_from_pages_items_across_pages_follow_status_option_order() {
 
     let board = board_from_pages([first.as_str(), second.as_str()]).unwrap();
 
+    assert_eq!(counts(&board), [("Backlog", 1), ("Ready", 0), ("Done", 2)]);
     assert_eq!(
-        counts(&board),
-        [("No status", 0), ("Backlog", 1), ("Ready", 0), ("Done", 2)]
-    );
-    assert_eq!(
-        board.columns[1].cards[0],
+        board.columns[0].cards[0],
         Card {
             item_id: "PVTI_2".into(),
             title: "Issue 2".into(),
@@ -125,7 +122,7 @@ fn board_from_pages_archived_items_are_left_out() {
 
     let board = board_from_pages([body.as_str()]).unwrap();
 
-    assert_eq!(counts(&board), [("No status", 0), ("Backlog", 1)]);
+    assert_eq!(counts(&board), [("Backlog", 1)]);
 }
 
 #[test]
@@ -142,7 +139,7 @@ fn board_from_pages_draft_has_title_only_and_opens_in_the_project() {
     let board = board_from_pages([body.as_str()]).unwrap();
 
     assert_eq!(
-        board.columns[1],
+        board.columns[0],
         Column {
             name: "Backlog".into(),
             option_id: Some("id-Backlog".into()),
@@ -216,7 +213,7 @@ fn move_on(board: &Board, card: &Card, to: usize) -> CardMove {
         project_id: board.project_id.clone(),
         item_id: card.item_id.clone(),
         field_id: board.status_field_id.clone().unwrap(),
-        option_id: board.columns[to].option_id.clone(),
+        option_id: board.columns[to].option_id.clone().unwrap(),
     }
 }
 
@@ -225,16 +222,8 @@ fn card_move_request_to_a_lane_sets_status_to_its_option() {
     let board = board_from_pages([RECORDED]).unwrap();
     let paused = &board.columns[4].cards[0];
 
-    let (mutation, variables) = card_move_request(&move_on(&board, paused, 1));
+    let variables = card_move_request(&move_on(&board, paused, 1));
 
-    assert!(
-        mutation.contains("updateProjectV2ItemFieldValue"),
-        "{mutation}"
-    );
-    assert!(
-        mutation.contains("singleSelectOptionId: $option"),
-        "{mutation}"
-    );
     assert_eq!(
         variables,
         json!({
@@ -247,24 +236,15 @@ fn card_move_request_to_a_lane_sets_status_to_its_option() {
 }
 
 #[test]
-fn card_move_request_to_no_status_clears_status() {
-    let board = board_from_pages([RECORDED]).unwrap();
-    let up_next = &board.columns[1].cards[0];
-
-    let (mutation, variables) = card_move_request(&move_on(&board, up_next, 0));
-
-    assert!(
-        mutation.contains("clearProjectV2ItemFieldValue"),
-        "{mutation}"
+fn board_from_pages_every_item_with_a_status_shows_no_no_status_column() {
+    let body = page(
+        status_field(&["Backlog", "Done"]),
+        json!([issue(Some("Done"), 1), issue(Some("Backlog"), 2)]),
     );
-    assert_eq!(
-        variables,
-        json!({
-            "project": "PVT_kwDNJr_NE10",
-            "item": "PVTI_lADNJr_NE13OAALQrQ",
-            "field": "PVTSSF_lADNJr_NE13Nml4",
-        })
-    );
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(counts(&board), [("Backlog", 1), ("Done", 1)]);
 }
 
 #[test]
@@ -273,9 +253,21 @@ fn card_move_deserializes_from_the_interface_shape() {
         "project_id": "PVT_1",
         "item_id": "PVTI_1",
         "field_id": "PVTSSF_1",
-        "option_id": null,
+        "option_id": "f75ad846",
     }))
     .unwrap();
 
-    assert_eq!(card_move.option_id, None);
+    assert_eq!(card_move.option_id, "f75ad846");
+}
+
+#[test]
+fn card_move_without_an_option_is_refused_so_no_card_moves_to_no_status() {
+    let card_move = serde_json::from_value::<CardMove>(json!({
+        "project_id": "PVT_1",
+        "item_id": "PVTI_1",
+        "field_id": "PVTSSF_1",
+        "option_id": null,
+    }));
+
+    assert!(card_move.is_err());
 }

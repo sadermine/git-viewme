@@ -29,8 +29,8 @@ export type Column = { name: string; option_id: string | null; cards: Card[] };
 /** `status_field_id` is null when the project has no Status field, and then no card moves. */
 export type Board = { project_id: string; status_field_id: string | null; columns: Column[] };
 
-/** Sets a card's Status to `option_id`, or clears it when that is null. */
-export type CardMove = { project_id: string; item_id: string; field_id: string; option_id: string | null };
+/** Sets a card's Status to `option_id`. No card moves to "No status". */
+export type CardMove = { project_id: string; item_id: string; field_id: string; option_id: string };
 
 export type IssueState = 'open' | 'closed';
 

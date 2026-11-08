@@ -28,8 +28,9 @@
    *  back to where it was. */
   async function move(value: Board, itemId: string, to: Column, refocus: boolean) {
     const fieldId = value.status_field_id;
+    const optionId = to.option_id;
     const from = value.columns.find((column) => column.cards.some((card) => card.item_id === itemId));
-    if (fieldId === null || from === undefined || from === to || pending[itemId]) return;
+    if (fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
     const index = from.cards.findIndex((card) => card.item_id === itemId);
     const [card] = from.cards.splice(index, 1);
     to.cards.push(card);
@@ -37,7 +38,7 @@
     pending[itemId] = true;
     if (refocus) void focusMoveButton(itemId);
     try {
-      await api.moveCard({ project_id: value.project_id, item_id: itemId, field_id: fieldId, option_id: to.option_id });
+      await api.moveCard({ project_id: value.project_id, item_id: itemId, field_id: fieldId, option_id: optionId });
     } catch (error) {
       const at = to.cards.findIndex((moved) => moved.item_id === itemId);
       if (at !== -1) {
@@ -110,7 +111,7 @@
   }
 
   function dragOver(event: DragEvent, column: Column) {
-    if (dragging === null) return;
+    if (dragging === null || column.option_id === null) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     dropTarget = column;
@@ -203,7 +204,7 @@
                             onkeydown={(event) => menuKey(event, card.item_id)}
                           >
                             {#each value.columns as target (target.option_id ?? '')}
-                              {#if target !== column}
+                              {#if target !== column && target.option_id !== null}
                                 <button
                                   role="menuitem"
                                   onclick={() => {

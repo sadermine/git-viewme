@@ -40,13 +40,6 @@ mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
   }) { projectV2Item { id } }
 }"#;
 
-const CLEAR_STATUS: &str = r#"
-mutation($project: ID!, $item: ID!, $field: ID!) {
-  clearProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field }) {
-    projectV2Item { id }
-  }
-}"#;
-
 impl GitHub {
     pub async fn project_board(&self, project: &ProjectRef) -> Result<Board, CoreError> {
         let pages = self
@@ -62,31 +55,25 @@ impl GitHub {
     /// Moves a card to another column by setting its item's `Status`. This and the sign-in are
     /// the app's only writes to GitHub.
     pub async fn move_card(&self, card_move: &CardMove) -> Result<(), CoreError> {
-        let (mutation, variables) = card_move_request(card_move);
-        self.graphql(mutation, variables).await.map(drop)
+        self.graphql(SET_STATUS, card_move_request(card_move))
+            .await
+            .map(drop)
     }
 }
 
-/// The GraphQL mutation and variables that move a card: set `Status` to the option, or clear it
-/// for "No status".
-pub fn card_move_request(card_move: &CardMove) -> (&'static str, Value) {
-    let mut variables = json!({
+/// The variables of the mutation that sets a card's `Status` to the option it moves to.
+pub fn card_move_request(card_move: &CardMove) -> Value {
+    json!({
         "project": card_move.project_id,
         "item": card_move.item_id,
         "field": card_move.field_id,
-    });
-    match &card_move.option_id {
-        Some(option) => {
-            variables["option"] = json!(option);
-            (SET_STATUS, variables)
-        }
-        None => (CLEAR_STATUS, variables),
-    }
+        "option": card_move.option_id,
+    })
 }
 
 /// Groups every page of the project-items GraphQL query into columns. The columns follow the
-/// options of the project's `Status` field, after "No status", which is always there so that a
-/// card can be moved to it, as on GitHub's board. Archived items are left out, as on GitHub.
+/// options of the project's `Status` field, with "No status" first when any item has no status.
+/// Archived items are left out, as on GitHub's board.
 pub fn board_from_pages<'a>(pages: impl IntoIterator<Item = &'a str>) -> Result<Board, CoreError> {
     let mut statuses: Option<Vec<StatusOption>> = None;
     let mut ids: Option<(String, Option<String>)> = None;
@@ -128,11 +115,13 @@ pub fn board_from_pages<'a>(pages: impl IntoIterator<Item = &'a str>) -> Result<
     let (project_id, status_field_id) = ids.ok_or(CoreError::NotFound)?;
     let options = statuses.unwrap_or_default();
     let mut columns = Vec::with_capacity(options.len() + 1);
-    columns.push(Column {
-        name: NO_STATUS.to_owned(),
-        option_id: None,
-        cards: no_status,
-    });
+    if !no_status.is_empty() {
+        columns.push(Column {
+            name: NO_STATUS.to_owned(),
+            option_id: None,
+            cards: no_status,
+        });
+    }
     columns.extend(
         options
             .into_iter()
