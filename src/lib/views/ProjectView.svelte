@@ -57,7 +57,7 @@
       case 'missing_scope':
         return 'Moving cards needs a newer sign-in than this one. Sign in again to move cards.';
       case 'forbidden':
-        return 'You do not have write access to this project.';
+        return `You may not have write access to this project. GitHub said: ${error.message}`;
       default:
         return describeError(error, 'project board');
     }
