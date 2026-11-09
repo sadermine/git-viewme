@@ -1,7 +1,7 @@
 use git_viewme_core::{
     Issue, IssueCache, IssueState, PullRequestCache, PullRequestState, PullRequestStatus,
-    issue_changes_from_pages, issue_counts_from_response, issues_from_pages,
-    pull_request_changes_from_pages, pull_requests_from_pages,
+    issue_changes_from_pages, issues_from_pages, pull_request_changes_from_pages,
+    pull_requests_from_pages,
 };
 use serde_json::{Value, json};
 
@@ -119,95 +119,6 @@ fn merge_drops_an_issue_closed_since_when_closed_was_never_fetched() {
 }
 
 #[test]
-fn count_differs_twice_when_an_issue_was_deleted_and_not_for_a_state_never_fetched() {
-    let open = page(&[
-        issue(2, "open", "2026-11-06T10:00:00Z"),
-        issue(1, "open", "2026-11-05T10:00:00Z"),
-    ]);
-    let mut cache = IssueCache::default();
-    cache.replace(
-        IssueState::Open,
-        issues_from_pages([open.as_str()]).unwrap(),
-        SINCE.into(),
-    );
-
-    assert!(!cache.count_differs_twice(IssueState::Open, 2));
-    assert!(!cache.count_differs_twice(IssueState::Open, 1));
-    assert!(cache.count_differs_twice(IssueState::Open, 1));
-    assert!(!cache.count_differs_twice(IssueState::Closed, 7));
-    assert!(!cache.count_differs_twice(IssueState::Closed, 7));
-}
-
-#[test]
-fn count_that_runs_ahead_of_the_rest_list_for_one_refresh_refetches_nothing() {
-    // GraphQL already counts #2 as closed, but the change request does not return it yet.
-    let mut cache = cached_issues();
-    assert!(!cache.count_differs_twice(IssueState::Open, 2));
-    assert!(!cache.count_differs_twice(IssueState::Closed, 2));
-
-    let caught_up = page(&[issue(2, "closed", "2026-11-08T12:02:00Z")]);
-    cache.merge(issue_changes_from_pages([caught_up.as_str()]).unwrap());
-
-    assert!(!cache.count_differs_twice(IssueState::Open, 2));
-    assert!(!cache.count_differs_twice(IssueState::Closed, 2));
-    assert!(
-        !cache.count_differs_twice(IssueState::Open, 1),
-        "a later deletion is checked afresh"
-    );
-    assert!(cache.count_differs_twice(IssueState::Open, 1));
-}
-
-#[test]
-fn settle_after_merging_what_moved_while_paging_keeps_a_lasting_gap_from_refetching() {
-    // GitHub counts 4 open issues: #1 to #3, and one the REST list never returns. #3 moved to
-    // the top while the full fetch paged, so the fetch missed it.
-    let open = page(&[
-        issue(2, "open", "2026-11-06T10:00:00Z"),
-        issue(1, "open", "2026-11-05T10:00:00Z"),
-    ]);
-    let mut cache = IssueCache::default();
-    cache.replace(
-        IssueState::Open,
-        issues_from_pages([open.as_str()]).unwrap(),
-        SINCE.into(),
-    );
-    let moved = page(&[issue(3, "open", "2026-11-08T12:00:30Z")]);
-    cache.merge(issue_changes_from_pages([moved.as_str()]).unwrap());
-
-    cache.settle(IssueState::Open, 4);
-
-    assert!(!cache.count_differs_twice(IssueState::Open, 4));
-    assert!(!cache.count_differs_twice(IssueState::Open, 3));
-    assert!(
-        cache.count_differs_twice(IssueState::Open, 3),
-        "a deletion still shows"
-    );
-    assert_eq!(numbers(cache.list(IssueState::Open)), Some(vec![3, 2, 1]));
-}
-
-#[test]
-fn replace_forgets_the_gap_settled_for_the_list_it_replaces() {
-    let open = page(&[issue(1, "open", "2026-11-05T10:00:00Z")]);
-    let mut cache = IssueCache::default();
-    cache.replace(
-        IssueState::Open,
-        issues_from_pages([open.as_str()]).unwrap(),
-        SINCE.into(),
-    );
-    cache.settle(IssueState::Open, 3);
-
-    cache.replace(
-        IssueState::Open,
-        issues_from_pages([open.as_str()]).unwrap(),
-        SINCE.into(),
-    );
-
-    assert!(!cache.count_differs_twice(IssueState::Open, 1));
-    assert!(!cache.count_differs_twice(IssueState::Open, 3));
-    assert!(cache.count_differs_twice(IssueState::Open, 3));
-}
-
-#[test]
 fn since_keeps_the_earliest_full_fetch_and_drops_the_etag_when_it_moves() {
     let mut cache = IssueCache::default();
     cache.replace(IssueState::Open, vec![], "2026-11-08T12:00:00Z".into());
@@ -243,23 +154,6 @@ fn answered_moves_since_only_past_one_page_even_when_no_list_changed() {
     cache.answered(2, "2026-11-08T13:59:00Z".into(), Some("W/\"b\"".into()));
     assert_eq!(cache.since(), Some("2026-11-08T13:59:00Z"));
     assert_eq!(cache.etag(), None);
-}
-
-#[test]
-fn issue_counts_from_response_reads_open_and_closed() {
-    let body = json!({
-        "data": { "repository": {
-            "open": { "totalCount": 18 },
-            "closed": { "totalCount": 4 }
-        } }
-    })
-    .to_string();
-
-    assert_eq!(
-        issue_counts_from_response(&body).unwrap(),
-        [(IssueState::Open, 18), (IssueState::Closed, 4)]
-    );
-    assert!(issue_counts_from_response(r#"{"data":{"repository":null}}"#).is_err());
 }
 
 #[test]

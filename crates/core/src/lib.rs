@@ -19,7 +19,7 @@ pub use board::{board_from_pages, card_move_request};
 pub use error::{CoreError, error_for_graphql, error_for_status};
 pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
-pub use issues::{issue_changes_from_pages, issue_counts_from_response, issues_from_pages};
+pub use issues::{issue_changes_from_pages, issues_from_pages};
 pub use lists::{IssueCache, ListCache, Listed, PullRequestCache};
 pub use pulls::{pull_request_changes_from_pages, pull_requests_from_pages};
 pub use repos::repos_from_pages;
