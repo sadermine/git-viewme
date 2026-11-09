@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use keyring::{Entry, Error as KeyringError};
 use reqwest::header::{AUTHORIZATION, HeaderValue};
 use reqwest::{Client, Request, Response};
@@ -10,7 +12,7 @@ const API_HOST: &str = "api.github.com";
 
 /// A GitHub OAuth token. It has no `Serialize` and its `Debug` hides the value, so no Tauri
 /// command can return it and no log line can print it. Its value and `load_token` are private to
-/// this module, so the only way another file can use the token is `authorize`.
+/// this module, so the only way another file can use the token is `send_authorized`.
 pub(crate) struct AccessToken(String);
 
 impl AccessToken {
@@ -37,14 +39,26 @@ pub(crate) fn store_token(token: &AccessToken) -> Result<(), CoreError> {
     entry()?.set_password(&token.0).map_err(store_error)
 }
 
+/// The client that sends the token. It lives here so that no caller can hand `send_authorized` a
+/// client that resolves the API host to another address or accepts any certificate.
+static HTTP: LazyLock<Client> = LazyLock::new(|| {
+    Client::builder()
+        .user_agent(concat!("git-viewme/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("the HTTP client builds with static settings")
+});
+
+/// A handle to the client `send_authorized` uses, for building requests and for requests that
+/// carry no token.
+pub(crate) fn http() -> Client {
+    HTTP.clone()
+}
+
 /// Sends a request for GitHub's API with the stored token. It returns only the response, so no
 /// caller can read the token back from the request's headers. A request for any other host is
 /// refused before the store is read.
-pub(crate) async fn send_authorized(
-    http: &Client,
-    request: Request,
-) -> Result<Response, CoreError> {
-    Ok(http.execute(authorize(request)?).await?)
+pub(crate) async fn send_authorized(request: Request) -> Result<Response, CoreError> {
+    Ok(HTTP.execute(authorize(request)?).await?)
 }
 
 fn authorize(request: Request) -> Result<Request, CoreError> {

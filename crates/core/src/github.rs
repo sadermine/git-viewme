@@ -7,7 +7,7 @@ use reqwest::{RequestBuilder, Response, StatusCode, Url};
 use serde_json::{Value, json};
 
 use crate::lists::{IssueCache, ListCache, PullRequestCache};
-use crate::token::{delete_token, send_authorized};
+use crate::token::{delete_token, http, send_authorized};
 use crate::{CoreError, RepoRef, error_for_graphql, error_for_status};
 
 const API: &str = "https://api.github.com";
@@ -53,12 +53,8 @@ pub(crate) struct Pages {
 
 impl Default for GitHub {
     fn default() -> Self {
-        let http = reqwest::Client::builder()
-            .user_agent(concat!("git-viewme/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("the HTTP client builds with static settings");
         Self {
-            http,
+            http: http(),
             account: AtomicU64::new(0),
             issues: Mutex::default(),
             pulls: Mutex::default(),
@@ -113,7 +109,7 @@ impl GitHub {
         let request = request
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()?;
-        let response = send_authorized(&self.http, request).await?;
+        let response = send_authorized(request).await?;
         let status = response.status();
         if is_answer(status) {
             return Ok(response);
