@@ -37,8 +37,8 @@ async fn sign_in(
 }
 
 #[tauri::command]
-fn sign_out() -> Result<(), CoreError> {
-    git_viewme_core::delete_token()
+fn sign_out(github: State<'_, GitHub>) -> Result<(), CoreError> {
+    github.sign_out()
 }
 
 #[tauri::command]

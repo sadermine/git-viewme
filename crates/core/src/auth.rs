@@ -77,6 +77,7 @@ impl GitHub {
                 .await?;
             match reply {
                 TokenReply::Token { access_token } => {
+                    self.account_changed();
                     return store_token(&AccessToken::new(access_token));
                 }
                 TokenReply::Error(reply) => match reply.error.as_str() {

@@ -49,7 +49,7 @@ impl GitHub {
                 "/data/repositoryOwner/projectV2/items/pageInfo",
             )
             .await?;
-        board_from_pages(pages.iter().map(String::as_str))
+        board_from_pages(pages.bodies.iter().map(String::as_str))
     }
 
     /// Moves a card to another column by setting its item's `Status`. This and the sign-in are

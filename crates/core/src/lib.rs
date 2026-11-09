@@ -8,6 +8,7 @@ mod error;
 mod files;
 mod github;
 mod issues;
+mod lists;
 mod pulls;
 mod repos;
 mod settings;
@@ -18,15 +19,16 @@ pub use board::{board_from_pages, card_move_request};
 pub use error::{CoreError, error_for_graphql, error_for_status};
 pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
-pub use issues::issues_from_pages;
-pub use pulls::pull_requests_from_pages;
+pub use issues::{issue_changes_from_pages, issues_from_pages};
+pub use lists::{IssueCache, ListCache, Listed, PullRequestCache};
+pub use pulls::{pull_request_changes_from_pages, pull_requests_from_graphql_pages};
 pub use repos::repos_from_pages;
 pub use settings::{ClientId, client_id, save_client_id};
 pub use token::{AccessToken, delete_token, is_signed_in, store_token};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RepoRef {
     pub owner: String,
     pub name: String,
@@ -108,7 +110,7 @@ pub struct CardMove {
     pub option_id: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueState {
     Open,
@@ -137,7 +139,7 @@ pub struct Issue {
 }
 
 /// The `state` GitHub filters a pull request list by, and the state each pull request reports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PullRequestState {
     Open,
