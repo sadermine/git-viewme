@@ -21,7 +21,10 @@ pub use files::{file_content_from_response, tree_from_response};
 pub use github::GitHub;
 pub use issues::{issue_changes_from_pages, issues_from_pages};
 pub use lists::{IssueCache, ListCache, Listed, PullRequestCache};
-pub use pulls::{pull_request_changes_from_pages, pull_requests_from_pages};
+pub use pulls::{
+    FullFetch, pull_request_changes_from_pages, pull_request_left_while_paging,
+    pull_requests_from_pages,
+};
 pub use repos::repos_from_pages;
 pub use settings::{ClientId, client_id, save_client_id};
 pub use token::{AccessToken, delete_token, is_signed_in, store_token};

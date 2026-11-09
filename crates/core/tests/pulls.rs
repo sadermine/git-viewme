@@ -1,4 +1,7 @@
-use git_viewme_core::{PullRequest, PullRequestState, PullRequestStatus, pull_requests_from_pages};
+use git_viewme_core::{
+    FullFetch, PullRequest, PullRequestState, PullRequestStatus, pull_request_changes_from_pages,
+    pull_request_left_while_paging, pull_requests_from_pages,
+};
 use serde_json::{Value, json};
 
 fn pull(number: u32, updated_at: &str) -> Value {
@@ -180,4 +183,69 @@ fn pull_request_state_serializes_as_the_query_value() {
     for state in [PullRequestState::Open, PullRequestState::Closed] {
         assert_eq!(serde_json::to_value(state).unwrap(), json!(state.as_str()));
     }
+}
+
+const FETCH_STARTED: &str = "2026-11-08T12:00:00Z";
+
+/// A two-page full fetch of Open that listed #1 to #3.
+fn open_fetch(pages: usize) -> FullFetch {
+    FullFetch {
+        state: PullRequestState::Open,
+        pages,
+        since: FETCH_STARTED.into(),
+        numbers: vec![3, 2, 1],
+    }
+}
+
+fn changes(nodes: &[Value]) -> Vec<(PullRequestState, PullRequest)> {
+    let page = Value::Array(nodes.to_vec()).to_string();
+    pull_request_changes_from_pages([page.as_str()]).unwrap()
+}
+
+#[test]
+fn pull_request_left_while_paging_merged_after_a_multi_page_fetch_started_is_true() {
+    let merged = changes(&[closed(
+        2,
+        "2026-11-08T12:00:30Z",
+        Some("2026-11-08T12:00:30Z"),
+    )]);
+
+    assert!(pull_request_left_while_paging(&open_fetch(2), &merged));
+}
+
+#[test]
+fn pull_request_left_while_paging_one_page_fetch_is_false() {
+    let merged = changes(&[closed(
+        2,
+        "2026-11-08T12:00:30Z",
+        Some("2026-11-08T12:00:30Z"),
+    )]);
+
+    assert!(!pull_request_left_while_paging(&open_fetch(1), &merged));
+}
+
+#[test]
+fn pull_request_left_while_paging_ignores_updates_new_ones_and_earlier_closes() {
+    let unrelated = changes(&[
+        pull(3, "2026-11-08T12:00:40Z"),
+        pull(9, "2026-11-08T12:00:20Z"),
+        closed(8, "2026-11-08T12:00:10Z", None),
+        closed(1, "2026-11-08T11:59:00Z", None),
+    ]);
+
+    assert!(!pull_request_left_while_paging(&open_fetch(2), &unrelated));
+    assert!(!pull_request_left_while_paging(&open_fetch(2), &[]));
+}
+
+#[test]
+fn pull_request_left_while_paging_reopened_during_a_closed_fetch_is_true() {
+    let fetch = FullFetch {
+        state: PullRequestState::Closed,
+        ..open_fetch(3)
+    };
+
+    assert!(pull_request_left_while_paging(
+        &fetch,
+        &changes(&[pull(1, "2026-11-08T12:01:00Z")])
+    ));
 }

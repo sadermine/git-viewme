@@ -14,7 +14,11 @@ impl GitHub {
     ) -> Result<Vec<PullRequest>, CoreError> {
         let cache = self.pull_request_cache(repo);
         let mut cache = cache.lock().await;
-        if cache.list(state).is_none() {
+        if cache.list(state).is_some() {
+            self.refresh_pull_requests(repo, &mut cache).await?;
+            return Ok(cache.list(state).unwrap_or_default());
+        }
+        for _ in 0..=REFETCHES {
             let pages = self
                 .get_pages(
                     &["repos", &repo.owner, &repo.name, "pulls"],
@@ -27,11 +31,20 @@ impl GitHub {
                 )
                 .await?;
             let pulls = pull_requests_from_pages(pages.bodies.iter().map(String::as_str))?;
+            let fetch = FullFetch {
+                state,
+                pages: pages.bodies.len(),
+                since: pages.since.clone(),
+                numbers: pulls.iter().map(|pull| pull.number).collect(),
+            };
             cache.replace(state, pulls, pages.since);
+            // Right after a full fetch this merges what moved while it paged, and leaves the ETag
+            // that makes the first switch free.
+            let changes = self.refresh_pull_requests(repo, &mut cache).await?;
+            if !pull_request_left_while_paging(&fetch, &changes) {
+                break;
+            }
         }
-        // Right after a full fetch this merges what moved while it paged, and leaves the ETag
-        // that makes the first switch free.
-        self.refresh_pull_requests(repo, &mut cache).await?;
         Ok(cache.list(state).unwrap_or_default())
     }
 
@@ -42,7 +55,7 @@ impl GitHub {
         &self,
         repo: &RepoRef,
         cache: &mut PullRequestCache,
-    ) -> Result<(), CoreError> {
+    ) -> Result<Vec<(PullRequestState, PullRequest)>, CoreError> {
         let since = cache.since().unwrap_or_default().to_owned();
         let changes = self
             .get_changed_pages(
@@ -61,14 +74,44 @@ impl GitHub {
                 },
             )
             .await?;
-        if let Some(pages) = changes {
-            let changes = pull_request_changes_from_pages(pages.bodies.iter().map(String::as_str))?;
-            cache.merge(changes);
-            cache.advance(pages.since);
-            cache.set_etag(pages.etag);
-        }
-        Ok(())
+        let Some(pages) = changes else {
+            return Ok(Vec::new());
+        };
+        let changes = pull_request_changes_from_pages(pages.bodies.iter().map(String::as_str))?;
+        cache.merge(changes.clone());
+        cache.advance(pages.since);
+        cache.set_etag(pages.etag);
+        Ok(changes)
     }
+}
+
+/// How many times a state is fetched in full again when a pull request left it while it paged.
+const REFETCHES: usize = 3;
+
+/// What a full fetch of one state read: how many pages, the GitHub time it started at, and the
+/// pull requests it listed.
+pub struct FullFetch {
+    pub state: PullRequestState,
+    pub pages: usize,
+    pub since: String,
+    pub numbers: Vec<u32>,
+}
+
+/// Whether the change answer right after a full fetch shows a pull request that fetch listed
+/// leaving its state since the fetch started. The pulls endpoint pages by number, so when a pull
+/// request on a page already read leaves the state, every row below it moves up one place and
+/// the first row of the next page is never read. That row did not change, so no change answer
+/// brings it back, and only a fresh full fetch does. One page has no next page to lose a row from.
+pub fn pull_request_left_while_paging(
+    fetch: &FullFetch,
+    changes: &[(PullRequestState, PullRequest)],
+) -> bool {
+    fetch.pages > 1
+        && changes.iter().any(|(state, pull)| {
+            *state != fetch.state
+                && pull.updated_at >= fetch.since
+                && fetch.numbers.contains(&pull.number)
+        })
 }
 
 /// Turns the bodies of REST pull-request-list pages into pull requests, most recently updated
