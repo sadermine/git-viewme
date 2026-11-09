@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import * as api from '$lib/api';
+  import { placeCard, withPendingMoves } from '$lib/board';
   import LoadView from '$lib/components/LoadView.svelte';
   import Notice from '$lib/components/Notice.svelte';
   import { describeError } from '$lib/errors';
@@ -8,48 +9,56 @@
   import type { Board, Column, CoreError } from '$lib/types';
   import type { ViewProps } from '$lib/views';
 
-  let { repo }: ViewProps = $props();
+  let { repo, track }: ViewProps = $props();
+
+  /** Cards whose move GitHub has not answered yet, each with the option it is moving to. A second
+   *  move of the same card waits for the first. */
+  let pending = $state<Record<string, string>>({});
 
   const project = $derived(repo.linked_projects[0] ?? null);
+  // A key, so a sidebar refresh that replaces `repo` with an equal one does not reload the board.
+  const projectKey = $derived(project === null ? null : `${project.owner}/${project.number}`);
   const board = $derived.by(() => {
-    const linked = project;
-    return linked === null ? null : new Load(() => api.projectBoard(linked));
+    if (projectKey === null) return null;
+    const linked = untrack(() => project);
+    return linked === null
+      ? null
+      : new Load('project board', async () => withPendingMoves(await api.projectBoard(linked), pending));
   });
+  $effect.pre(() => track(() => [board]));
   const projectsUrl = $derived(`https://github.com/${repo.ref.owner}/${repo.ref.name}/projects`);
 
-  /** Cards whose move GitHub has not answered yet. A second move waits for the first. */
-  let pending = $state<Record<string, true>>({});
   let failure = $state<{ title: string; error: CoreError } | null>(null);
   let dragging = $state<string | null>(null);
   let dropTarget = $state<Column | null>(null);
   let menuFor = $state<string | null>(null);
 
+  /** The board on screen, which a refresh may have replaced since a move began. */
+  const shown = (): Board | null => (board?.current.state.kind === 'ready' ? board.current.state.value : null);
+
   /** Moves the card at once and asks GitHub to set its Status. If GitHub refuses, the card goes
-   *  back to where it was. */
+   *  back to where it was, on whichever board is on screen by then. */
   async function move(value: Board, itemId: string, to: Column, refocus: boolean) {
     const fieldId = value.status_field_id;
     const optionId = to.option_id;
     const from = value.columns.find((column) => column.cards.some((card) => card.item_id === itemId));
     if (fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
     const index = from.cards.findIndex((card) => card.item_id === itemId);
-    const [card] = from.cards.splice(index, 1);
-    to.cards.push(card);
+    const title = from.cards[index].title;
+    placeCard(value, itemId, optionId);
     failure = null;
-    pending[itemId] = true;
+    pending[itemId] = optionId;
     if (refocus) void focusMoveButton(itemId);
     try {
       await api.moveCard({ project_id: value.project_id, item_id: itemId, field_id: fieldId, option_id: optionId });
+      delete pending[itemId];
     } catch (error) {
-      const at = to.cards.findIndex((moved) => moved.item_id === itemId);
-      if (at !== -1) {
-        to.cards.splice(at, 1);
-        from.cards.splice(Math.min(index, from.cards.length), 0, card);
-      }
-      failure = { title: card.title, error: api.asCoreError(error) };
+      delete pending[itemId];
+      const current = shown();
+      if (current !== null) placeCard(current, itemId, from.option_id, index);
+      failure = { title, error: api.asCoreError(error) };
       if (failure.error.kind === 'unauthorized') session.lost();
       if (refocus) void focusMoveButton(itemId);
-    } finally {
-      delete pending[itemId];
     }
   }
 
@@ -135,7 +144,7 @@
     <button class="link" onclick={() => api.openExternal(projectsUrl)}>Open its projects on GitHub</button>
   </Notice>
 {:else}
-  <LoadView load={board} what="project board">
+  <LoadView load={board}>
     {#snippet children(value)}
       {@const movable = value.status_field_id !== null}
       <div class="project">
@@ -164,7 +173,7 @@
               </header>
               <div class="cards">
                 {#each column.cards as card (card.item_id)}
-                  {@const busy = pending[card.item_id] === true}
+                  {@const busy = pending[card.item_id] !== undefined}
                   <article
                     class="card"
                     class:dragging={dragging === card.item_id}

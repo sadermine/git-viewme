@@ -7,23 +7,29 @@
   import type { TreeEntry } from '$lib/types';
   import type { ViewProps } from '$lib/views';
 
-  let { repo, tab, update }: ViewProps = $props();
+  let { repo, tab, update, track }: ViewProps = $props();
 
   const branch = $derived(repo.default_branch);
   // A derived primitive, so switching views (which replaces `tab`) does not refetch the file.
   const selectedPath = $derived(tab.selectedPath);
   const expanded = new SvelteSet<string>();
 
+  // Primitives, so a sidebar refresh that replaces `repo` with an equal one does not reload the tree.
+  const owner = $derived(repo.ref.owner);
+  const name = $derived(repo.ref.name);
+
   const tree = $derived.by(() => {
-    const ref = repo.ref;
-    return branch === null ? null : new Load(() => api.fileTree(ref, branch));
+    const ref = { owner, name };
+    return branch === null ? null : new Load('file tree', () => api.fileTree(ref, branch));
   });
 
   const content = $derived.by(() => {
-    const ref = repo.ref;
+    const ref = { owner, name };
     const path = selectedPath;
-    return branch === null || path === null ? null : new Load(() => api.fileContent(ref, branch, path));
+    return branch === null || path === null ? null : new Load('file', () => api.fileContent(ref, branch, path));
   });
+
+  $effect.pre(() => track(() => [tree, content]));
 
   /** Relies on core returning the tree depth first, so a collapsed folder's contents follow it. */
   function visible(entries: TreeEntry[]): TreeEntry[] {
@@ -66,7 +72,7 @@
 {#if branch === null || tree === null}
   <Notice title="This repository is empty">It has no commits yet, so there are no files to show.</Notice>
 {:else}
-  <LoadView load={tree} what="file tree">
+  <LoadView load={tree}>
     {#snippet children(entries)}
       <div class="files">
         <nav class="tree" aria-label="Files">
@@ -90,13 +96,15 @@
         <section class="content">
           {#if content === null || selectedPath === null}
             <Notice title="No file open">Pick a file from the tree.</Notice>
+          {:else if !entries.some((entry) => entry.path === selectedPath)}
+            <Notice title="{baseName(selectedPath)} no longer exists">It is not on {branch} any more. Pick another file from the tree.</Notice>
           {:else}
             <div class="crumbs" aria-label="Path">
               {#each selectedPath.split('/') as part, i (i)}
                 {#if i > 0}<span class="sep">/</span>{/if}<span>{part}</span>
               {/each}
             </div>
-            <LoadView load={content} what="file">
+            <LoadView load={content}>
               {#snippet children(file)}
                 {#if file.kind === 'text'}
                   {@const numbered = lines(file.text)}
