@@ -204,3 +204,14 @@ fn merge_moves_a_merged_pull_request_from_open_to_closed() {
         ]
     );
 }
+
+#[test]
+fn forget_drops_one_state_and_keeps_the_others() {
+    let mut cache = cached_issues();
+
+    cache.forget(IssueState::Open);
+
+    assert_eq!(numbers(cache.list(IssueState::Open)), None);
+    assert_eq!(numbers(cache.list(IssueState::Closed)), Some(vec![4]));
+    assert_eq!(cache.since(), Some(SINCE));
+}

@@ -18,6 +18,23 @@ impl GitHub {
             self.refresh_pull_requests(repo, &mut cache).await?;
             return Ok(cache.list(state).unwrap_or_default());
         }
+        // A list stored before a later step failed may have lost a row, and the cached path never
+        // checks for that, so it goes and the next call fetches the state again.
+        if let Err(error) = self.fetch_pull_requests(repo, state, &mut cache).await {
+            cache.forget(state);
+            return Err(error);
+        }
+        Ok(cache.list(state).unwrap_or_default())
+    }
+
+    /// Fetches `state` in full into the cache, and again while a pull request it listed has left
+    /// the state since, at most `REFETCHES` more times.
+    async fn fetch_pull_requests(
+        &self,
+        repo: &RepoRef,
+        state: PullRequestState,
+        cache: &mut PullRequestCache,
+    ) -> Result<(), CoreError> {
         for _ in 0..=REFETCHES {
             let pages = self
                 .get_pages(
@@ -40,12 +57,12 @@ impl GitHub {
             cache.replace(state, pulls, pages.since);
             // Right after a full fetch this merges what moved while it paged, and leaves the ETag
             // that makes the first switch free.
-            let changes = self.refresh_pull_requests(repo, &mut cache).await?;
+            let changes = self.refresh_pull_requests(repo, cache).await?;
             if !pull_request_left_while_paging(&fetch, &changes) {
                 break;
             }
         }
-        Ok(cache.list(state).unwrap_or_default())
+        Ok(())
     }
 
     /// Merges the pull requests changed since the last fetch, in every state. The pulls endpoint
