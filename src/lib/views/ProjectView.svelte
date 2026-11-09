@@ -51,6 +51,7 @@
     if (refocus) void focusMoveButton(itemId);
     try {
       await api.moveCard({ project_id: value.project_id, item_id: itemId, field_id: fieldId, option_id: optionId });
+      if (board?.current.refreshing) await board.refresh();
       delete pending[itemId];
     } catch (error) {
       delete pending[itemId];
