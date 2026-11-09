@@ -7,7 +7,7 @@ use reqwest::{RequestBuilder, Response, StatusCode, Url};
 use serde_json::{Value, json};
 
 use crate::lists::{IssueCache, ListCache, PullRequestCache};
-use crate::token::{authorize, delete_token};
+use crate::token::{delete_token, send_authorized};
 use crate::{CoreError, RepoRef, error_for_graphql, error_for_status};
 
 const API: &str = "https://api.github.com";
@@ -113,7 +113,7 @@ impl GitHub {
         let request = request
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()?;
-        let response = self.http.execute(authorize(request)?).await?;
+        let response = send_authorized(&self.http, request).await?;
         let status = response.status();
         if is_answer(status) {
             return Ok(response);

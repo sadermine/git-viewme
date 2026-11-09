@@ -1,6 +1,6 @@
 use keyring::{Entry, Error as KeyringError};
-use reqwest::Request;
 use reqwest::header::{AUTHORIZATION, HeaderValue};
+use reqwest::{Client, Request, Response};
 
 use crate::CoreError;
 
@@ -37,9 +37,17 @@ pub(crate) fn store_token(token: &AccessToken) -> Result<(), CoreError> {
     entry()?.set_password(&token.0).map_err(store_error)
 }
 
-/// Adds the stored token to a request for GitHub's API. A request for any other host is refused
-/// before the store is read.
-pub(crate) fn authorize(request: Request) -> Result<Request, CoreError> {
+/// Sends a request for GitHub's API with the stored token. It returns only the response, so no
+/// caller can read the token back from the request's headers. A request for any other host is
+/// refused before the store is read.
+pub(crate) async fn send_authorized(
+    http: &Client,
+    request: Request,
+) -> Result<Response, CoreError> {
+    Ok(http.execute(authorize(request)?).await?)
+}
+
+fn authorize(request: Request) -> Result<Request, CoreError> {
     check_api_url(&request)?;
     let token = load_token()?.ok_or(CoreError::Unauthorized)?;
     with_token(request, &token)
@@ -87,7 +95,7 @@ pub fn delete_token() -> Result<(), CoreError> {
 
 #[cfg(test)]
 mod tests {
-    use reqwest::{Client, Method};
+    use reqwest::Method;
 
     use super::*;
 
@@ -108,7 +116,7 @@ mod tests {
         ] {
             let error = authorize(request(url)).expect_err(url);
             assert!(
-                matches!(error, CoreError::Other { .. }),
+                matches!(&error, CoreError::Other { message } if message.starts_with("Refused to send the token to")),
                 "{url} gave {error:?}"
             );
         }

@@ -57,7 +57,7 @@ jobs:
 
       - run: cargo test -p git-viewme-core # non-dotnet-checks
 
-      # Permitted deviation non-dotnet-checks: only the token guard's files read the token.
+      # Permitted deviation non-dotnet-checks: only token.rs uses the credential store.
       - run: bash tools/check-token-readers.sh # non-dotnet-checks
 
       # Permitted deviation non-dotnet-checks: Node.js is pinned in .nvmrc, and svelte-check's
