@@ -11,8 +11,8 @@
 
   let { repo, track }: ViewProps = $props();
 
-  /** Cards whose move GitHub has not answered yet, or answered while a board fetch begun before the
-   *  answer still runs, each with the option it is moving to. A second move of the same card waits. */
+  /** Cards whose move GitHub has not answered yet, or answered while a board fetch that began before
+   *  the answer is still running, each with the option it is moving to. A second move of the same card waits. */
   let pending = $state<Record<string, string>>({});
 
   const project = $derived(repo.linked_projects[0] ?? null);
