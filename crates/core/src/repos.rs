@@ -29,7 +29,7 @@ impl GitHub {
         let pages = self
             .graphql_pages(QUERY, json!({}), "/data/viewer/repositories/pageInfo")
             .await?;
-        repos_from_pages(pages.iter().map(String::as_str))
+        repos_from_pages(pages.bodies.iter().map(String::as_str))
     }
 }
 

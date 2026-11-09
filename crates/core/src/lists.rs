@@ -80,11 +80,6 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
         }
     }
 
-    /// Drops the cached list for `state`, so the next call fetches it in full.
-    pub fn forget(&mut self, state: S) {
-        self.lists.remove(&state);
-    }
-
     /// Merges changed items, each with its state now: it joins that state's list if that list is
     /// cached and leaves every other. Returns whether any list changed.
     pub fn merge(&mut self, changes: impl IntoIterator<Item = (S, T)>) -> bool {

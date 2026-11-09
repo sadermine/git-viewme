@@ -41,10 +41,10 @@ impl<C> Default for Lists<C> {
     }
 }
 
-/// The pages of a REST list, with what a later conditional request needs.
+/// The pages of a list, with what a later conditional request needs.
 pub(crate) struct Pages {
     pub(crate) bodies: Vec<String>,
-    /// The first page's `ETag`.
+    /// The first page's `ETag`. GraphQL sends none.
     pub(crate) etag: Option<String>,
     /// One minute before the first page's `Date`, as ISO 8601: GitHub's own clock, never the
     /// local one, with a margin, because asking for changes from too early only repeats some.
@@ -212,6 +212,15 @@ impl GitHub {
     /// Runs a GraphQL query or mutation and returns the response body. GitHub reports most
     /// GraphQL failures with status 200 and an `errors` list, so those are mapped here.
     pub(crate) async fn graphql(&self, query: &str, variables: Value) -> Result<String, CoreError> {
+        Ok(self.graphql_answer(query, variables).await?.0)
+    }
+
+    /// Like `graphql`, with the response's `Date` header.
+    async fn graphql_answer(
+        &self,
+        query: &str,
+        variables: Value,
+    ) -> Result<(String, Option<String>), CoreError> {
         let request = self
             .http
             .post(format!("{API}/graphql"))
@@ -221,9 +230,10 @@ impl GitHub {
             .headers()
             .get("x-ratelimit-reset")
             .and_then(|value| value.to_str().ok()?.parse().ok());
+        let date = header(&response, "date")?;
         let body = response.text().await?;
         error_for_graphql(&body, reset_at, now())?;
-        Ok(body)
+        Ok((body, date))
     }
 
     /// Fetches every page of a paged GraphQL connection. `page_info` points at the connection's
@@ -233,18 +243,29 @@ impl GitHub {
         query: &str,
         mut variables: Value,
         page_info: &str,
-    ) -> Result<Vec<String>, CoreError> {
-        let mut pages = Vec::new();
+    ) -> Result<Pages, CoreError> {
+        let mut bodies = Vec::new();
+        let mut since = String::new();
         loop {
-            let body = self.graphql(query, variables.clone()).await?;
+            let (body, date) = self.graphql_answer(query, variables.clone()).await?;
+            if bodies.is_empty() {
+                let date = date.ok_or_else(|| CoreError::other("GitHub sent no Date header"))?;
+                since = since_from_date(&date)?;
+            }
             let info: Value = serde_json::from_str(&body).map_err(|error| {
                 CoreError::other(format!("GitHub sent an unreadable response: {error}"))
             })?;
             let info = info.pointer(page_info).cloned().unwrap_or(Value::Null);
-            pages.push(body);
+            bodies.push(body);
             match (info["hasNextPage"].as_bool(), info["endCursor"].as_str()) {
                 (Some(true), Some(cursor)) => variables["after"] = json!(cursor),
-                _ => return Ok(pages),
+                _ => {
+                    return Ok(Pages {
+                        bodies,
+                        etag: None,
+                        since,
+                    });
+                }
             }
         }
     }

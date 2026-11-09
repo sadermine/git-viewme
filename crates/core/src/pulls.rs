@@ -1,7 +1,34 @@
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::lists::PullRequestCache;
 use crate::{CoreError, GitHub, PullRequest, PullRequestState, PullRequestStatus, RepoRef};
+
+/// One page of a state's pull requests, newest update first. GitHub's cursor holds the last
+/// row's `updatedAt` and ID, so a pull request that leaves the state or moves to the top while
+/// the pages load moves no other row past a page boundary. The REST list pages by position, and
+/// a merge on a page already read there makes the next page's first row go unread.
+const QUERY: &str = r"
+query($owner: String!, $name: String!, $states: [PullRequestState!], $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: $states, orderBy: { field: UPDATED_AT, direction: DESC }, first: 100, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        title
+        author { login }
+        labels(first: 100) { nodes { name } }
+        headRefName
+        baseRefName
+        state
+        isDraft
+        updatedAt
+        url
+      }
+    }
+  }
+}
+";
 
 impl GitHub {
     /// Every pull request in the repository with the given state, most recently updated first.
@@ -14,55 +41,25 @@ impl GitHub {
     ) -> Result<Vec<PullRequest>, CoreError> {
         let cache = self.pull_request_cache(repo);
         let mut cache = cache.lock().await;
-        if cache.list(state).is_some() {
-            self.refresh_pull_requests(repo, &mut cache).await?;
-            return Ok(cache.list(state).unwrap_or_default());
-        }
-        // A list stored before a later step failed may have lost a row, and the cached path never
-        // checks for that, so it goes and the next call fetches the state again.
-        if let Err(error) = self.fetch_pull_requests(repo, state, &mut cache).await {
-            cache.forget(state);
-            return Err(error);
-        }
-        Ok(cache.list(state).unwrap_or_default())
-    }
-
-    /// Fetches `state` in full into the cache, and again while a pull request it listed has left
-    /// the state since, at most `REFETCHES` more times.
-    async fn fetch_pull_requests(
-        &self,
-        repo: &RepoRef,
-        state: PullRequestState,
-        cache: &mut PullRequestCache,
-    ) -> Result<(), CoreError> {
-        for _ in 0..=REFETCHES {
+        if cache.list(state).is_none() {
+            let states = match state {
+                PullRequestState::Open => json!(["OPEN"]),
+                PullRequestState::Closed => json!(["CLOSED", "MERGED"]),
+            };
             let pages = self
-                .get_pages(
-                    &["repos", &repo.owner, &repo.name, "pulls"],
-                    &[
-                        ("state", state.as_str()),
-                        ("sort", "updated"),
-                        ("direction", "desc"),
-                        ("per_page", "100"),
-                    ],
+                .graphql_pages(
+                    QUERY,
+                    json!({ "owner": repo.owner, "name": repo.name, "states": states }),
+                    "/data/repository/pullRequests/pageInfo",
                 )
                 .await?;
-            let pulls = pull_requests_from_pages(pages.bodies.iter().map(String::as_str))?;
-            let fetch = FullFetch {
-                state,
-                pages: pages.bodies.len(),
-                since: pages.since.clone(),
-                numbers: pulls.iter().map(|pull| pull.number).collect(),
-            };
+            let pulls = pull_requests_from_graphql_pages(pages.bodies.iter().map(String::as_str))?;
             cache.replace(state, pulls, pages.since);
-            // Right after a full fetch this merges what moved while it paged, and leaves the ETag
-            // that makes the first switch free.
-            let changes = self.refresh_pull_requests(repo, cache).await?;
-            if !pull_request_left_while_paging(&fetch, &changes) {
-                break;
-            }
         }
-        Ok(())
+        // Right after a full fetch this merges what was updated while it paged, and leaves the
+        // ETag that makes the first switch free.
+        self.refresh_pull_requests(repo, &mut cache).await?;
+        Ok(cache.list(state).unwrap_or_default())
     }
 
     /// Merges the pull requests changed since the last fetch, in every state. The pulls endpoint
@@ -72,7 +69,7 @@ impl GitHub {
         &self,
         repo: &RepoRef,
         cache: &mut PullRequestCache,
-    ) -> Result<Vec<(PullRequestState, PullRequest)>, CoreError> {
+    ) -> Result<(), CoreError> {
         let since = cache.since().unwrap_or_default().to_owned();
         let changes = self
             .get_changed_pages(
@@ -91,82 +88,78 @@ impl GitHub {
                 },
             )
             .await?;
-        let Some(pages) = changes else {
-            return Ok(Vec::new());
-        };
-        let changes = pull_request_changes_from_pages(pages.bodies.iter().map(String::as_str))?;
-        cache.merge(changes.clone());
-        cache.advance(pages.since);
-        cache.set_etag(pages.etag);
-        Ok(changes)
+        if let Some(pages) = changes {
+            cache.merge(pull_request_changes_from_pages(
+                pages.bodies.iter().map(String::as_str),
+            )?);
+            cache.advance(pages.since);
+            cache.set_etag(pages.etag);
+        }
+        Ok(())
     }
 }
 
-/// How many times a state is fetched in full again when a pull request left it while it paged.
-const REFETCHES: usize = 3;
-
-/// What a full fetch of one state read: how many pages, the GitHub time it started at, and the
-/// pull requests it listed.
-pub struct FullFetch {
-    pub state: PullRequestState,
-    pub pages: usize,
-    pub since: String,
-    pub numbers: Vec<u32>,
-}
-
-/// Whether the change answer right after a full fetch shows a pull request that fetch listed
-/// leaving its state since the fetch started. The pulls endpoint pages by number, so when a pull
-/// request on a page already read leaves the state, every row below it moves up one place and
-/// the first row of the next page is never read. That row did not change, so no change answer
-/// brings it back, and only a fresh full fetch does. One page has no next page to lose a row from.
-pub fn pull_request_left_while_paging(
-    fetch: &FullFetch,
-    changes: &[(PullRequestState, PullRequest)],
-) -> bool {
-    fetch.pages > 1
-        && changes.iter().any(|(state, pull)| {
-            *state != fetch.state
-                && pull.updated_at >= fetch.since
-                && fetch.numbers.contains(&pull.number)
-        })
-}
-
-/// Turns the bodies of REST pull-request-list pages into pull requests, most recently updated
-/// first, each number once. When a pull request moves to the top while the pages load, the rows
-/// below it shift down a place, so the last row of one page comes back on the next.
-pub fn pull_requests_from_pages<'a>(
+/// Turns the bodies of the pull request GraphQL query's pages into pull requests, most recently
+/// updated first, each number once.
+pub fn pull_requests_from_graphql_pages<'a>(
     pages: impl IntoIterator<Item = &'a str>,
 ) -> Result<Vec<PullRequest>, CoreError> {
-    Ok(pull_request_changes_from_pages(pages)?
+    let mut pulls = Vec::new();
+    for page in pages {
+        let page: GraphqlPage = serde_json::from_str(page).map_err(|error| {
+            CoreError::other(format!(
+                "GitHub sent an unexpected pull request list: {error}"
+            ))
+        })?;
+        pulls.extend(
+            page.data
+                .repository
+                .pull_requests
+                .nodes
+                .into_iter()
+                .map(|node| {
+                    let status = match (node.state, node.is_draft) {
+                        (GraphqlState::Merged, _) => PullRequestStatus::Merged,
+                        (GraphqlState::Closed, _) => PullRequestStatus::Closed,
+                        (GraphqlState::Open, true) => PullRequestStatus::Draft,
+                        (GraphqlState::Open, false) => PullRequestStatus::Open,
+                    };
+                    let pull = PullRequest {
+                        number: node.number,
+                        title: node.title,
+                        author: node
+                            .author
+                            .map_or_else(|| "ghost".into(), |user| user.login),
+                        labels: node
+                            .labels
+                            .nodes
+                            .into_iter()
+                            .map(|label| label.name)
+                            .collect(),
+                        head: node.head_ref_name,
+                        base: node.base_ref_name,
+                        status,
+                        updated_at: node.updated_at,
+                        html_url: node.url,
+                    };
+                    ((), pull)
+                }),
+        );
+    }
+    Ok(newest_first(pulls)
         .into_iter()
         .map(|(_, pull)| pull)
         .collect())
 }
 
-/// Turns the bodies of a change request's pages, asked with `state=all`, into each pull request
-/// with the state GitHub lists it under now. A merged pull request is closed.
+/// Turns the bodies of a REST change request's pages, asked with `state=all`, into each pull
+/// request with the state GitHub lists it under now. A merged pull request is closed.
 pub fn pull_request_changes_from_pages<'a>(
     pages: impl IntoIterator<Item = &'a str>,
 ) -> Result<Vec<(PullRequestState, PullRequest)>, CoreError> {
-    let mut nodes = Vec::new();
+    let mut pulls = Vec::new();
     for page in pages {
-        nodes.extend(parse_page(page)?);
-    }
-    Ok(pull_requests_from_nodes(nodes))
-}
-
-fn parse_page(body: &str) -> Result<Vec<PullNode>, CoreError> {
-    serde_json::from_str(body).map_err(|error| {
-        CoreError::other(format!(
-            "GitHub sent an unexpected pull request list: {error}"
-        ))
-    })
-}
-
-fn pull_requests_from_nodes(nodes: Vec<PullNode>) -> Vec<(PullRequestState, PullRequest)> {
-    let mut pulls: Vec<(PullRequestState, PullRequest)> = nodes
-        .into_iter()
-        .map(|node| {
+        pulls.extend(parse_page(page)?.into_iter().map(|node| {
             let pull = PullRequest {
                 number: node.number,
                 title: node.title,
@@ -184,8 +177,22 @@ fn pull_requests_from_nodes(nodes: Vec<PullNode>) -> Vec<(PullRequestState, Pull
                 html_url: node.html_url,
             };
             (node.state, pull)
-        })
-        .collect();
+        }));
+    }
+    Ok(newest_first(pulls))
+}
+
+fn parse_page(body: &str) -> Result<Vec<PullNode>, CoreError> {
+    serde_json::from_str(body).map_err(|error| {
+        CoreError::other(format!(
+            "GitHub sent an unexpected pull request list: {error}"
+        ))
+    })
+}
+
+/// A pull request updated while the pages load can come back on two of them, and the view keys
+/// its rows by number. The newer copy is the one kept.
+fn newest_first<S>(mut pulls: Vec<(S, PullRequest)>) -> Vec<(S, PullRequest)> {
     pulls.sort_by(|(_, a), (_, b)| {
         a.number
             .cmp(&b.number)
@@ -198,6 +205,55 @@ fn pull_requests_from_nodes(nodes: Vec<PullNode>) -> Vec<(PullRequestState, Pull
             .then_with(|| b.number.cmp(&a.number))
     });
     pulls
+}
+
+#[derive(Deserialize)]
+struct GraphqlPage {
+    data: GraphqlData,
+}
+
+#[derive(Deserialize)]
+struct GraphqlData {
+    repository: GraphqlRepository,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphqlRepository {
+    pull_requests: GraphqlConnection,
+}
+
+#[derive(Deserialize)]
+struct GraphqlConnection {
+    nodes: Vec<GraphqlPull>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphqlPull {
+    number: u32,
+    title: String,
+    author: Option<Login>,
+    labels: GraphqlLabels,
+    head_ref_name: String,
+    base_ref_name: String,
+    state: GraphqlState,
+    is_draft: bool,
+    updated_at: String,
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct GraphqlLabels {
+    nodes: Vec<Label>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum GraphqlState {
+    Open,
+    Closed,
+    Merged,
 }
 
 #[derive(Deserialize)]

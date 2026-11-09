@@ -1,6 +1,6 @@
 use git_viewme_core::{
-    FullFetch, PullRequest, PullRequestState, PullRequestStatus, pull_request_changes_from_pages,
-    pull_request_left_while_paging, pull_requests_from_pages,
+    PullRequest, PullRequestState, PullRequestStatus, pull_request_changes_from_pages,
+    pull_requests_from_graphql_pages,
 };
 use serde_json::{Value, json};
 
@@ -50,14 +50,14 @@ fn statuses(pulls: &[PullRequest]) -> Vec<(u32, PullRequestStatus)> {
 }
 
 #[test]
-fn pull_requests_from_pages_tells_merged_from_closed_without_merging() {
+fn pull_request_changes_from_pages_tells_merged_from_closed_without_merging() {
     let body = json!([
         closed(11, "2026-11-06T10:00:00Z", Some("2026-11-06T10:00:00Z")),
         closed(12, "2026-11-05T10:00:00Z", None)
     ])
     .to_string();
 
-    let pulls = pull_requests_from_pages([body.as_str()]).unwrap();
+    let pulls = rest(&[body.as_str()]);
 
     assert_eq!(
         statuses(&pulls),
@@ -69,14 +69,14 @@ fn pull_requests_from_pages_tells_merged_from_closed_without_merging() {
 }
 
 #[test]
-fn pull_requests_from_pages_marks_open_drafts() {
+fn pull_request_changes_from_pages_marks_open_drafts() {
     let mut draft = pull(21, "2026-11-04T10:00:00Z");
     draft["draft"] = json!(true);
     let mut closed_draft = closed(22, "2026-11-03T10:00:00Z", None);
     closed_draft["draft"] = json!(true);
     let body = json!([pull(20, "2026-11-05T10:00:00Z"), draft, closed_draft]).to_string();
 
-    let pulls = pull_requests_from_pages([body.as_str()]).unwrap();
+    let pulls = rest(&[body.as_str()]);
 
     assert_eq!(
         statuses(&pulls),
@@ -89,7 +89,7 @@ fn pull_requests_from_pages_marks_open_drafts() {
 }
 
 #[test]
-fn pull_requests_from_pages_orders_most_recently_updated_first_across_pages() {
+fn pull_request_changes_from_pages_orders_most_recently_updated_first_across_pages() {
     let first = json!([
         pull(1, "2026-11-02T08:00:00Z"),
         pull(2, "2026-11-06T08:00:00Z")
@@ -101,14 +101,14 @@ fn pull_requests_from_pages_orders_most_recently_updated_first_across_pages() {
     ])
     .to_string();
 
-    let pulls = pull_requests_from_pages([first.as_str(), second.as_str()]).unwrap();
+    let pulls = rest(&[first.as_str(), second.as_str()]);
 
     let numbers: Vec<u32> = pulls.iter().map(|pull| pull.number).collect();
     assert_eq!(numbers, [2, 7, 3, 1]);
 }
 
 #[test]
-fn pull_requests_from_pages_keeps_one_copy_of_a_pull_request_on_two_pages() {
+fn pull_request_changes_from_pages_keeps_one_copy_of_a_pull_request_on_two_pages() {
     let first = json!([
         pull(5, "2026-11-04T08:00:00Z"),
         pull(4, "2026-11-03T08:00:00Z")
@@ -118,7 +118,7 @@ fn pull_requests_from_pages_keeps_one_copy_of_a_pull_request_on_two_pages() {
     updated["draft"] = json!(true);
     let second = json!([updated, pull(3, "2026-11-02T08:00:00Z")]).to_string();
 
-    let pulls = pull_requests_from_pages([first.as_str(), second.as_str()]).unwrap();
+    let pulls = rest(&[first.as_str(), second.as_str()]);
 
     assert_eq!(
         statuses(&pulls),
@@ -131,13 +131,13 @@ fn pull_requests_from_pages_keeps_one_copy_of_a_pull_request_on_two_pages() {
 }
 
 #[test]
-fn pull_requests_from_pages_maps_author_labels_branches_and_link() {
+fn pull_request_changes_from_pages_maps_author_labels_branches_and_link() {
     let mut deleted_author = pull(9, "2026-11-01T08:00:00Z");
     deleted_author["user"] = Value::Null;
     deleted_author["labels"] = json!([]);
     let body = json!([pull(8, "2026-11-03T08:00:00Z"), deleted_author]).to_string();
 
-    let pulls = pull_requests_from_pages([body.as_str()]).unwrap();
+    let pulls = rest(&[body.as_str()]);
 
     assert_eq!(
         pulls,
@@ -169,13 +169,13 @@ fn pull_requests_from_pages_maps_author_labels_branches_and_link() {
 }
 
 #[test]
-fn pull_requests_from_pages_empty_repository_has_no_pull_requests() {
-    assert_eq!(pull_requests_from_pages(["[]"]).unwrap(), []);
+fn pull_request_changes_from_pages_empty_repository_has_no_pull_requests() {
+    assert_eq!(rest(&["[]"]), []);
 }
 
 #[test]
-fn pull_requests_from_pages_unexpected_body_is_an_error() {
-    assert!(pull_requests_from_pages([r#"{"message":"oops"}"#]).is_err());
+fn pull_request_changes_from_pages_unexpected_body_is_an_error() {
+    assert!(pull_request_changes_from_pages([r#"{"message":"oops"}"#]).is_err());
 }
 
 #[test]
@@ -185,67 +185,166 @@ fn pull_request_state_serializes_as_the_query_value() {
     }
 }
 
-const FETCH_STARTED: &str = "2026-11-08T12:00:00Z";
-
-/// A two-page full fetch of Open that listed #1 to #3.
-fn open_fetch(pages: usize) -> FullFetch {
-    FullFetch {
-        state: PullRequestState::Open,
-        pages,
-        since: FETCH_STARTED.into(),
-        numbers: vec![3, 2, 1],
-    }
-}
-
-fn changes(nodes: &[Value]) -> Vec<(PullRequestState, PullRequest)> {
-    let page = Value::Array(nodes.to_vec()).to_string();
-    pull_request_changes_from_pages([page.as_str()]).unwrap()
+/// The pull requests of REST change-request pages, without their states.
+fn rest(pages: &[&str]) -> Vec<PullRequest> {
+    pull_request_changes_from_pages(pages.iter().copied())
+        .unwrap()
+        .into_iter()
+        .map(|(_, pull)| pull)
+        .collect()
 }
 
 #[test]
-fn pull_request_left_while_paging_merged_after_a_multi_page_fetch_started_is_true() {
-    let merged = changes(&[closed(
-        2,
-        "2026-11-08T12:00:30Z",
-        Some("2026-11-08T12:00:30Z"),
-    )]);
+fn pull_request_changes_from_pages_lists_each_under_its_state_now() {
+    let body = json!([
+        closed(11, "2026-11-06T10:00:00Z", Some("2026-11-06T10:00:00Z")),
+        pull(10, "2026-11-05T10:00:00Z")
+    ])
+    .to_string();
 
-    assert!(pull_request_left_while_paging(&open_fetch(2), &merged));
+    let states: Vec<(PullRequestState, u32)> = pull_request_changes_from_pages([body.as_str()])
+        .unwrap()
+        .into_iter()
+        .map(|(state, pull)| (state, pull.number))
+        .collect();
+
+    assert_eq!(
+        states,
+        [(PullRequestState::Closed, 11), (PullRequestState::Open, 10)]
+    );
+}
+
+fn graphql_pull(number: u32, state: &str, draft: bool, updated_at: &str) -> Value {
+    json!({
+        "number": number,
+        "title": format!("Pull request {number}"),
+        "author": { "login": "sader-agents" },
+        "labels": { "nodes": [{ "name": "feature" }] },
+        "headRefName": format!("card/{number}"),
+        "baseRefName": "main",
+        "state": state,
+        "isDraft": draft,
+        "updatedAt": updated_at,
+        "url": format!("https://github.com/sadermine/git-viewme/pull/{number}"),
+    })
+}
+
+fn graphql_page(nodes: &[Value], next: Option<&str>) -> String {
+    json!({
+        "data": {
+            "repository": {
+                "pullRequests": {
+                    "pageInfo": { "hasNextPage": next.is_some(), "endCursor": next },
+                    "nodes": nodes,
+                }
+            }
+        }
+    })
+    .to_string()
 }
 
 #[test]
-fn pull_request_left_while_paging_one_page_fetch_is_false() {
-    let merged = changes(&[closed(
-        2,
-        "2026-11-08T12:00:30Z",
-        Some("2026-11-08T12:00:30Z"),
-    )]);
+fn pull_requests_from_graphql_pages_tells_merged_closed_draft_and_open_apart() {
+    let page = graphql_page(
+        &[
+            graphql_pull(14, "MERGED", false, "2026-11-08T10:00:00Z"),
+            graphql_pull(13, "CLOSED", true, "2026-11-07T10:00:00Z"),
+            graphql_pull(12, "OPEN", true, "2026-11-06T10:00:00Z"),
+            graphql_pull(11, "OPEN", false, "2026-11-05T10:00:00Z"),
+        ],
+        None,
+    );
 
-    assert!(!pull_request_left_while_paging(&open_fetch(1), &merged));
+    let pulls = pull_requests_from_graphql_pages([page.as_str()]).unwrap();
+
+    assert_eq!(
+        statuses(&pulls),
+        [
+            (14, PullRequestStatus::Merged),
+            (13, PullRequestStatus::Closed),
+            (12, PullRequestStatus::Draft),
+            (11, PullRequestStatus::Open)
+        ]
+    );
 }
 
 #[test]
-fn pull_request_left_while_paging_ignores_updates_new_ones_and_earlier_closes() {
-    let unrelated = changes(&[
-        pull(3, "2026-11-08T12:00:40Z"),
-        pull(9, "2026-11-08T12:00:20Z"),
-        closed(8, "2026-11-08T12:00:10Z", None),
-        closed(1, "2026-11-08T11:59:00Z", None),
-    ]);
+fn pull_requests_from_graphql_pages_maps_author_labels_branches_and_link() {
+    let mut deleted_author = graphql_pull(9, "OPEN", false, "2026-11-01T08:00:00Z");
+    deleted_author["author"] = Value::Null;
+    deleted_author["labels"] = json!({ "nodes": [] });
+    let page = graphql_page(
+        &[
+            graphql_pull(8, "OPEN", false, "2026-11-03T08:00:00Z"),
+            deleted_author,
+        ],
+        None,
+    );
 
-    assert!(!pull_request_left_while_paging(&open_fetch(2), &unrelated));
-    assert!(!pull_request_left_while_paging(&open_fetch(2), &[]));
+    let pulls = pull_requests_from_graphql_pages([page.as_str()]).unwrap();
+
+    assert_eq!(
+        pulls,
+        [
+            PullRequest {
+                number: 8,
+                title: "Pull request 8".into(),
+                author: "sader-agents".into(),
+                labels: vec!["feature".into()],
+                head: "card/8".into(),
+                base: "main".into(),
+                status: PullRequestStatus::Open,
+                updated_at: "2026-11-03T08:00:00Z".into(),
+                html_url: "https://github.com/sadermine/git-viewme/pull/8".into(),
+            },
+            PullRequest {
+                number: 9,
+                title: "Pull request 9".into(),
+                author: "ghost".into(),
+                labels: vec![],
+                head: "card/9".into(),
+                base: "main".into(),
+                status: PullRequestStatus::Open,
+                updated_at: "2026-11-01T08:00:00Z".into(),
+                html_url: "https://github.com/sadermine/git-viewme/pull/9".into(),
+            },
+        ]
+    );
 }
 
 #[test]
-fn pull_request_left_while_paging_reopened_during_a_closed_fetch_is_true() {
-    let fetch = FullFetch {
-        state: PullRequestState::Closed,
-        ..open_fetch(3)
-    };
+fn pull_requests_from_graphql_pages_orders_most_recently_updated_first_across_pages() {
+    let first = graphql_page(
+        &[
+            graphql_pull(2, "OPEN", false, "2026-11-06T08:00:00Z"),
+            graphql_pull(7, "OPEN", false, "2026-11-04T08:00:00Z"),
+        ],
+        Some("cursor"),
+    );
+    let second = graphql_page(
+        &[
+            graphql_pull(3, "OPEN", false, "2026-11-04T08:00:00Z"),
+            graphql_pull(1, "OPEN", false, "2026-11-02T08:00:00Z"),
+        ],
+        None,
+    );
 
-    assert!(pull_request_left_while_paging(
-        &fetch,
-        &changes(&[pull(1, "2026-11-08T12:01:00Z")])
-    ));
+    let pulls = pull_requests_from_graphql_pages([first.as_str(), second.as_str()]).unwrap();
+
+    let numbers: Vec<u32> = pulls.iter().map(|pull| pull.number).collect();
+    assert_eq!(numbers, [2, 7, 3, 1]);
+}
+
+#[test]
+fn pull_requests_from_graphql_pages_empty_repository_has_no_pull_requests() {
+    let page = graphql_page(&[], None);
+    assert_eq!(
+        pull_requests_from_graphql_pages([page.as_str()]).unwrap(),
+        []
+    );
+}
+
+#[test]
+fn pull_requests_from_graphql_pages_unexpected_body_is_an_error() {
+    assert!(pull_requests_from_graphql_pages([r#"{"data":{"repository":null}}"#]).is_err());
 }

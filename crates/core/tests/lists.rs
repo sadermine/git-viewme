@@ -1,7 +1,7 @@
 use git_viewme_core::{
-    Issue, IssueCache, IssueState, PullRequestCache, PullRequestState, PullRequestStatus,
-    issue_changes_from_pages, issues_from_pages, pull_request_changes_from_pages,
-    pull_requests_from_pages,
+    Issue, IssueCache, IssueState, PullRequest, PullRequestCache, PullRequestState,
+    PullRequestStatus, issue_changes_from_pages, issues_from_pages,
+    pull_request_changes_from_pages,
 };
 use serde_json::{Value, json};
 
@@ -37,6 +37,14 @@ fn pull(number: u32, state: &str, merged_at: Option<&str>, updated_at: &str) -> 
 
 fn page(nodes: &[Value]) -> String {
     Value::Array(nodes.to_vec()).to_string()
+}
+
+fn pulls(page: &str) -> Vec<PullRequest> {
+    pull_request_changes_from_pages([page])
+        .unwrap()
+        .into_iter()
+        .map(|(_, pull)| pull)
+        .collect()
 }
 
 fn numbers(issues: Option<Vec<Issue>>) -> Option<Vec<u32>> {
@@ -164,16 +172,8 @@ fn merge_moves_a_merged_pull_request_from_open_to_closed() {
     ]);
     let closed = page(&[pull(5, "closed", None, "2026-11-01T10:00:00Z")]);
     let mut cache = PullRequestCache::default();
-    cache.replace(
-        PullRequestState::Open,
-        pull_requests_from_pages([open.as_str()]).unwrap(),
-        SINCE.into(),
-    );
-    cache.replace(
-        PullRequestState::Closed,
-        pull_requests_from_pages([closed.as_str()]).unwrap(),
-        SINCE.into(),
-    );
+    cache.replace(PullRequestState::Open, pulls(&open), SINCE.into());
+    cache.replace(PullRequestState::Closed, pulls(&closed), SINCE.into());
     let changes = page(&[pull(
         7,
         "closed",
@@ -203,15 +203,4 @@ fn merge_moves_a_merged_pull_request_from_open_to_closed() {
             (5, PullRequestStatus::Closed)
         ]
     );
-}
-
-#[test]
-fn forget_drops_one_state_and_keeps_the_others() {
-    let mut cache = cached_issues();
-
-    cache.forget(IssueState::Open);
-
-    assert_eq!(numbers(cache.list(IssueState::Open)), None);
-    assert_eq!(numbers(cache.list(IssueState::Closed)), Some(vec![4]));
-    assert_eq!(cache.since(), Some(SINCE));
 }
