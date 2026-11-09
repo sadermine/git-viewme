@@ -41,6 +41,8 @@ struct List<T> {
     items: BTreeMap<u32, T>,
     /// GitHub's count minus the list's length, taken by `settle` after each full fetch.
     offset: i64,
+    /// The disagreement the last count check saw, if it saw one.
+    seen: Option<i64>,
 }
 
 pub type IssueCache = ListCache<IssueState, Issue>;
@@ -75,7 +77,14 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
             .into_iter()
             .map(|item| (item.number(), item))
             .collect();
-        self.lists.insert(state, List { items, offset: 0 });
+        self.lists.insert(
+            state,
+            List {
+                items,
+                offset: 0,
+                seen: None,
+            },
+        );
         if self.since.as_ref().is_none_or(|held| since < *held) {
             self.since = Some(since);
             self.etag = None;
@@ -101,12 +110,18 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
         changed
     }
 
-    /// Whether `state`'s cached list disagrees with GitHub's `count` of items in that state, so a
-    /// deletion or a transfer, which no change request returns, has happened.
-    pub fn count_differs(&self, state: S, count: usize) -> bool {
-        self.lists
-            .get(&state)
-            .is_some_and(|list| i64::try_from(count).unwrap_or(i64::MAX) - list.offset != len(list))
+    /// Whether `state`'s cached list disagrees with GitHub's `count` of items in that state by the
+    /// same amount as at the last check, so a deletion or a transfer, which no change request
+    /// returns, has happened. GitHub's REST lists can trail its GraphQL counts for a moment after
+    /// an issue opens or closes, so one disagreement alone is not trusted.
+    pub fn count_differs_twice(&mut self, state: S, count: usize) -> bool {
+        let Some(list) = self.lists.get_mut(&state) else {
+            return false;
+        };
+        let gap = i64::try_from(count).unwrap_or(i64::MAX) - list.offset - len(list);
+        let again = gap != 0 && list.seen == Some(gap);
+        list.seen = (gap != 0).then_some(gap);
+        again
     }
 
     /// Records how far GitHub's `count` is from `state`'s list just after its full fetch, once the
@@ -115,6 +130,7 @@ impl<S: Copy + Eq + Hash, T: Listed> ListCache<S, T> {
     pub fn settle(&mut self, state: S, count: usize) {
         if let Some(list) = self.lists.get_mut(&state) {
             list.offset = i64::try_from(count).unwrap_or(i64::MAX) - len(list);
+            list.seen = None;
         }
     }
 

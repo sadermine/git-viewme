@@ -54,7 +54,8 @@ impl GitHub {
 
     /// Merges the issues changed since the last fetch, in every state, so one closed since leaves
     /// Open and joins Closed. A deleted or transferred issue never shows up as changed, so the
-    /// counts are checked after and a state whose count differs is fetched again in full.
+    /// counts are checked after and a state whose count differs on two refreshes in a row is
+    /// fetched again in full.
     /// `fetched` names the states just fetched in full. A full fetch misses issues that moved
     /// while it paged, so each one's count is compared only after a change request has merged
     /// them, and then recorded rather than checked.
@@ -69,7 +70,7 @@ impl GitHub {
         let differing: Vec<IssueState> = counts
             .iter()
             .filter(|(state, count)| {
-                !fetched.contains(state) && cache.count_differs(*state, *count)
+                !fetched.contains(state) && cache.count_differs_twice(*state, *count)
             })
             .map(|(state, _)| *state)
             .collect();

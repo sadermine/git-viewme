@@ -119,7 +119,7 @@ fn merge_drops_an_issue_closed_since_when_closed_was_never_fetched() {
 }
 
 #[test]
-fn count_differs_when_an_issue_was_deleted_and_not_for_a_state_never_fetched() {
+fn count_differs_twice_when_an_issue_was_deleted_and_not_for_a_state_never_fetched() {
     let open = page(&[
         issue(2, "open", "2026-11-06T10:00:00Z"),
         issue(1, "open", "2026-11-05T10:00:00Z"),
@@ -131,9 +131,30 @@ fn count_differs_when_an_issue_was_deleted_and_not_for_a_state_never_fetched() {
         SINCE.into(),
     );
 
-    assert!(!cache.count_differs(IssueState::Open, 2));
-    assert!(cache.count_differs(IssueState::Open, 1));
-    assert!(!cache.count_differs(IssueState::Closed, 7));
+    assert!(!cache.count_differs_twice(IssueState::Open, 2));
+    assert!(!cache.count_differs_twice(IssueState::Open, 1));
+    assert!(cache.count_differs_twice(IssueState::Open, 1));
+    assert!(!cache.count_differs_twice(IssueState::Closed, 7));
+    assert!(!cache.count_differs_twice(IssueState::Closed, 7));
+}
+
+#[test]
+fn count_that_runs_ahead_of_the_rest_list_for_one_refresh_refetches_nothing() {
+    // GraphQL already counts #2 as closed, but the change request does not return it yet.
+    let mut cache = cached_issues();
+    assert!(!cache.count_differs_twice(IssueState::Open, 2));
+    assert!(!cache.count_differs_twice(IssueState::Closed, 2));
+
+    let caught_up = page(&[issue(2, "closed", "2026-11-08T12:02:00Z")]);
+    cache.merge(issue_changes_from_pages([caught_up.as_str()]).unwrap());
+
+    assert!(!cache.count_differs_twice(IssueState::Open, 2));
+    assert!(!cache.count_differs_twice(IssueState::Closed, 2));
+    assert!(
+        !cache.count_differs_twice(IssueState::Open, 1),
+        "a later deletion is checked afresh"
+    );
+    assert!(cache.count_differs_twice(IssueState::Open, 1));
 }
 
 #[test]
@@ -155,9 +176,10 @@ fn settle_after_merging_what_moved_while_paging_keeps_a_lasting_gap_from_refetch
 
     cache.settle(IssueState::Open, 4);
 
-    assert!(!cache.count_differs(IssueState::Open, 4));
+    assert!(!cache.count_differs_twice(IssueState::Open, 4));
+    assert!(!cache.count_differs_twice(IssueState::Open, 3));
     assert!(
-        cache.count_differs(IssueState::Open, 3),
+        cache.count_differs_twice(IssueState::Open, 3),
         "a deletion still shows"
     );
     assert_eq!(numbers(cache.list(IssueState::Open)), Some(vec![3, 2, 1]));
@@ -180,8 +202,9 @@ fn replace_forgets_the_gap_settled_for_the_list_it_replaces() {
         SINCE.into(),
     );
 
-    assert!(cache.count_differs(IssueState::Open, 3));
-    assert!(!cache.count_differs(IssueState::Open, 1));
+    assert!(!cache.count_differs_twice(IssueState::Open, 1));
+    assert!(!cache.count_differs_twice(IssueState::Open, 3));
+    assert!(cache.count_differs_twice(IssueState::Open, 3));
 }
 
 #[test]
