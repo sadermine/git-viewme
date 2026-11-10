@@ -12,7 +12,7 @@ tier = "prototype"
 [[guarded]]
 id = "token"
 rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store and GitHub's API."
-points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send"]
+points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send", "check-token-readers.sh: the credential store crate in no file but the five it lists"]
 paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs", "tools/check-token-readers.sh"]
 
 # CLAUDE.md, Commands, gives each check's prerequisites. The first seven mirror ci.yml's steps.
