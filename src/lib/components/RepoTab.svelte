@@ -39,12 +39,12 @@
       {/each}
     </div>
     <span class="spacer"></span>
+    <RefreshControl {status} {refresh} title="Refresh this view (F5)" />
     {#if repo.default_branch}<span class="chip" title="Default branch">⎇ {repo.default_branch}</span>{/if}
     {#if project}<span class="chip" title="Linked project">▦ {project.title}</span>{/if}
     <button class="url link" title="Open {repo.html_url} in the browser" onclick={() => api.openExternal(repo.html_url)}>
       {displayUrl(repo)} ↗
     </button>
-    <RefreshControl {status} {refresh} title="Refresh this view (F5)" />
   </header>
 
   {#each VIEWS as view (view.id)}
