@@ -8,7 +8,7 @@ platforms = ["linux", "windows"]
 tier = "prototype"
 
 # The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
-# The reader check is guarded too, because it is the only check on a file calling keyring itself (#54).
+# The reader check is guarded too, because it is the only check on a file calling the credential store crate itself (#54).
 [[guarded]]
 id = "token"
 rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store and GitHub's API."
