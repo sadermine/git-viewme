@@ -24,13 +24,25 @@ fn pull(number: u32, updated_at: &str) -> Value {
         "head": {
             "label": format!("sadermine:card/{number}"),
             "ref": format!("card/{number}"),
-            "sha": "0123456789abcdef0123456789abcdef01234567"
+            "sha": "0123456789abcdef0123456789abcdef01234567",
+            "user": { "login": "sadermine" },
+            "repo": repo(700, "sadermine")
         },
         "base": {
             "label": "sadermine:main",
             "ref": "main",
-            "sha": "89abcdef0123456789abcdef0123456789abcdef"
+            "sha": "89abcdef0123456789abcdef0123456789abcdef",
+            "repo": repo(700, "sadermine")
         }
+    })
+}
+
+fn repo(id: u64, owner: &str) -> Value {
+    json!({
+        "id": id,
+        "name": "git-viewme",
+        "full_name": format!("{owner}/git-viewme"),
+        "owner": { "login": owner, "id": id, "type": "User" }
     })
 }
 
@@ -40,6 +52,13 @@ fn closed(number: u32, updated_at: &str, merged_at: Option<&str>) -> Value {
     node["closed_at"] = json!(updated_at);
     node["merged_at"] = json!(merged_at);
     node
+}
+
+fn heads(pulls: &[PullRequest]) -> Vec<(u32, String)> {
+    pulls
+        .iter()
+        .map(|pull| (pull.number, pull.head.clone()))
+        .collect()
 }
 
 fn statuses(pulls: &[PullRequest]) -> Vec<(u32, PullRequestStatus)> {
@@ -169,6 +188,42 @@ fn pull_request_changes_from_pages_maps_author_labels_branches_and_link() {
 }
 
 #[test]
+fn pull_request_changes_from_pages_shows_a_fork_head_with_its_owner() {
+    let mut fork = pull(31, "2026-11-05T08:00:00Z");
+    fork["head"]["label"] = json!("octocat:main");
+    fork["head"]["ref"] = json!("main");
+    fork["head"]["user"] = json!({ "login": "octocat" });
+    fork["head"]["repo"] = repo(900, "octocat");
+    let mut deleted_fork = pull(32, "2026-11-04T08:00:00Z");
+    deleted_fork["head"]["label"] = json!("octocat:patch");
+    deleted_fork["head"]["ref"] = json!("patch");
+    deleted_fork["head"]["user"] = json!({ "login": "octocat" });
+    deleted_fork["head"]["repo"] = Value::Null;
+    let mut deleted_account = pull(33, "2026-11-04T07:00:00Z");
+    deleted_account["head"]["label"] = json!("gone");
+    deleted_account["head"]["ref"] = json!("gone");
+    deleted_account["head"]["user"] = Value::Null;
+    deleted_account["head"]["repo"] = Value::Null;
+    let body = json!([
+        fork,
+        deleted_fork,
+        deleted_account,
+        pull(30, "2026-11-03T08:00:00Z")
+    ])
+    .to_string();
+
+    assert_eq!(
+        heads(&rest(&[body.as_str()])),
+        [
+            (31, "octocat:main".into()),
+            (32, "octocat:patch".into()),
+            (33, "unknown:gone".into()),
+            (30, "card/30".into())
+        ]
+    );
+}
+
+#[test]
 fn pull_request_changes_from_pages_empty_repository_has_no_pull_requests() {
     assert_eq!(rest(&["[]"]), []);
 }
@@ -221,6 +276,8 @@ fn graphql_pull(number: u32, state: &str, draft: bool, updated_at: &str) -> Valu
         "author": { "login": "sader-agents" },
         "labels": { "nodes": [{ "name": "feature" }] },
         "headRefName": format!("card/{number}"),
+        "headRepositoryOwner": { "login": "sadermine" },
+        "isCrossRepository": false,
         "baseRefName": "main",
         "state": state,
         "isDraft": draft,
@@ -333,6 +390,35 @@ fn pull_requests_from_graphql_pages_orders_most_recently_updated_first_across_pa
 
     let numbers: Vec<u32> = pulls.iter().map(|pull| pull.number).collect();
     assert_eq!(numbers, [2, 7, 3, 1]);
+}
+
+#[test]
+fn pull_requests_from_graphql_pages_shows_a_fork_head_with_its_owner() {
+    let mut fork = graphql_pull(31, "OPEN", false, "2026-11-05T08:00:00Z");
+    fork["headRefName"] = json!("main");
+    fork["headRepositoryOwner"] = json!({ "login": "octocat" });
+    fork["isCrossRepository"] = json!(true);
+    let mut deleted_fork = graphql_pull(32, "OPEN", false, "2026-11-04T08:00:00Z");
+    deleted_fork["headRefName"] = json!("patch");
+    deleted_fork["headRepositoryOwner"] = Value::Null;
+    deleted_fork["isCrossRepository"] = json!(true);
+    let page = graphql_page(
+        &[
+            fork,
+            deleted_fork,
+            graphql_pull(30, "OPEN", false, "2026-11-03T08:00:00Z"),
+        ],
+        None,
+    );
+
+    assert_eq!(
+        heads(&pull_requests_from_graphql_pages([page.as_str()]).unwrap()),
+        [
+            (31, "octocat:main".into()),
+            (32, "unknown:patch".into()),
+            (30, "card/30".into())
+        ]
+    );
 }
 
 #[test]
