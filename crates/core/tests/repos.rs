@@ -51,8 +51,12 @@ fn repos_from_pages_sorts_by_owner_then_name_ignoring_case() {
 
 #[test]
 fn repos_from_pages_maps_empty_repository_and_linked_projects() {
-    let projects =
-        json!([{ "number": 7, "title": "Trader board", "owner": { "login": "sadermine" } }]);
+    let projects = json!([{
+        "number": 7,
+        "title": "Trader board",
+        "url": "https://github.com/users/sadermine/projects/7",
+        "owner": { "login": "sadermine" }
+    }]);
     let body = page(json!([node("sadermine", "sader-trader", None, projects)]));
 
     let repos = repos_from_pages([body.as_str()]).unwrap();
@@ -70,9 +74,28 @@ fn repos_from_pages_maps_empty_repository_and_linked_projects() {
             linked_projects: vec![ProjectRef {
                 owner: "sadermine".into(),
                 number: 7,
-                title: "Trader board".into()
+                title: "Trader board".into(),
+                url: "https://github.com/users/sadermine/projects/7".into()
             }],
         }]
+    );
+}
+
+#[test]
+fn repos_from_pages_takes_an_organization_project_url_from_github() {
+    let projects = json!([{
+        "number": 3,
+        "title": "Roadmap",
+        "url": "https://github.com/orgs/acme/projects/3",
+        "owner": { "login": "acme" }
+    }]);
+    let body = page(json!([node("acme", "widgets", Some("main"), projects)]));
+
+    let repos = repos_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(
+        repos[0].linked_projects[0].url,
+        "https://github.com/orgs/acme/projects/3"
     );
 }
 
@@ -84,4 +107,20 @@ fn repo_serializes_ref_under_its_spec_name() {
 
     assert_eq!(json["ref"], json!({ "owner": "o", "name": "n" }));
     assert_eq!(json["default_branch"], json!("main"));
+}
+
+#[test]
+fn linked_project_deserializes_from_what_the_repository_list_sends() {
+    let projects = json!([{
+        "number": 3,
+        "title": "Roadmap",
+        "url": "https://github.com/orgs/acme/projects/3",
+        "owner": { "login": "acme" }
+    }]);
+    let body = page(json!([node("acme", "widgets", Some("main"), projects)]));
+    let sent = &repos_from_pages([body.as_str()]).unwrap()[0].linked_projects[0];
+
+    let received: ProjectRef = serde_json::from_value(serde_json::to_value(sent).unwrap()).unwrap();
+
+    assert_eq!(&received, sent);
 }

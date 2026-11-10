@@ -49,6 +49,8 @@ pub struct ProjectRef {
     pub owner: String,
     pub number: u32,
     pub title: String,
+    /// The project's page on GitHub, as GitHub reports it, since a user's and an organization's differ.
+    pub url: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

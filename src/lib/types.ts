@@ -2,7 +2,7 @@
 
 export type RepoRef = { owner: string; name: string };
 
-export type ProjectRef = { owner: string; number: number; title: string };
+export type ProjectRef = { owner: string; number: number; title: string; url: string };
 
 export type Repo = {
   ref: RepoRef;
