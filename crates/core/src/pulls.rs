@@ -175,7 +175,7 @@ pub fn pull_request_changes_from_pages<'a>(
                     node.head.r#ref,
                     node.head.repo.as_ref().map(|repo| repo.id)
                         != node.base.repo.as_ref().map(|repo| repo.id),
-                    node.head.repo.map(|repo| repo.owner),
+                    node.head.user,
                 ),
                 base: node.base.r#ref,
                 status: match (node.state, node.merged_at, node.draft) {
@@ -194,7 +194,7 @@ pub fn pull_request_changes_from_pages<'a>(
 }
 
 /// A fork's branch carries its owner, as GitHub shows it, so a fork's `main` into `main` does not
-/// read as a branch into itself. A deleted fork has no owner left to show.
+/// read as a branch into itself. A deleted account has no owner left to show.
 fn head_name(branch: String, cross_repository: bool, owner: Option<Login>) -> String {
     if !cross_repository {
         return branch;
@@ -308,11 +308,11 @@ struct Label {
 #[derive(Deserialize)]
 struct Branch {
     r#ref: String,
+    user: Option<Login>,
     repo: Option<Repo>,
 }
 
 #[derive(Deserialize)]
 struct Repo {
     id: u64,
-    owner: Login,
 }
