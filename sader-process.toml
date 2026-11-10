@@ -8,11 +8,12 @@ platforms = ["linux", "windows"]
 tier = "prototype"
 
 # The app holds the user's GitHub OAuth token with the repo scope, so a leak is a High rating.
+# The reader check is guarded too, because it is the only check on a file calling the credential store crate itself (#54).
 [[guarded]]
 id = "token"
 rule = "The OAuth token never reaches the interface, a log line or anywhere but the OS credential store and GitHub's API."
 points = ["AccessToken: no Serialize, Debug that hides the value", "store_token", "GitHub::sign_in", "GitHub::send"]
-paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs"]
+paths = ["crates/core/src/token.rs", "crates/core/src/auth.rs", "crates/core/src/github.rs", "tools/check-token-readers.sh"]
 
 # CLAUDE.md, Commands, gives each check's prerequisites. The first seven mirror ci.yml's steps.
 
