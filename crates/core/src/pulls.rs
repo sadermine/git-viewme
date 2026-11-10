@@ -19,6 +19,8 @@ query($owner: String!, $name: String!, $states: [PullRequestState!], $after: Str
         author { login }
         labels(first: 100) { nodes { name } }
         headRefName
+        headRepositoryOwner { login }
+        isCrossRepository
         baseRefName
         state
         isDraft
@@ -136,7 +138,11 @@ pub fn pull_requests_from_graphql_pages<'a>(
                             .into_iter()
                             .map(|label| label.name)
                             .collect(),
-                        head: node.head_ref_name,
+                        head: head_name(
+                            node.head_ref_name,
+                            node.is_cross_repository,
+                            node.head_repository_owner,
+                        ),
                         base: node.base_ref_name,
                         status,
                         updated_at: node.updated_at,
@@ -165,7 +171,12 @@ pub fn pull_request_changes_from_pages<'a>(
                 title: node.title,
                 author: node.user.map_or_else(|| "ghost".into(), |user| user.login),
                 labels: node.labels.into_iter().map(|label| label.name).collect(),
-                head: node.head.r#ref,
+                head: head_name(
+                    node.head.r#ref,
+                    node.head.repo.as_ref().map(|repo| repo.id)
+                        != node.base.repo.as_ref().map(|repo| repo.id),
+                    node.head.repo.map(|repo| repo.owner),
+                ),
                 base: node.base.r#ref,
                 status: match (node.state, node.merged_at, node.draft) {
                     (PullRequestState::Closed, Some(_), _) => PullRequestStatus::Merged,
@@ -180,6 +191,16 @@ pub fn pull_request_changes_from_pages<'a>(
         }));
     }
     Ok(newest_first(pulls))
+}
+
+/// A fork's branch carries its owner, as GitHub shows it, so a fork's `main` into `main` does not
+/// read as a branch into itself. A deleted fork has no owner left to show.
+fn head_name(branch: String, cross_repository: bool, owner: Option<Login>) -> String {
+    if !cross_repository {
+        return branch;
+    }
+    let owner = owner.map_or_else(|| "unknown".into(), |owner| owner.login);
+    format!("{owner}:{branch}")
 }
 
 fn parse_page(body: &str) -> Result<Vec<PullNode>, CoreError> {
@@ -236,6 +257,8 @@ struct GraphqlPull {
     author: Option<Login>,
     labels: GraphqlLabels,
     head_ref_name: String,
+    head_repository_owner: Option<Login>,
+    is_cross_repository: bool,
     base_ref_name: String,
     state: GraphqlState,
     is_draft: bool,
@@ -285,4 +308,11 @@ struct Label {
 #[derive(Deserialize)]
 struct Branch {
     r#ref: String,
+    repo: Option<Repo>,
+}
+
+#[derive(Deserialize)]
+struct Repo {
+    id: u64,
+    owner: Login,
 }
