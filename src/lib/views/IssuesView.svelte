@@ -6,7 +6,7 @@
   import type { IssueState } from '$lib/types';
   import type { ViewProps } from '$lib/views';
 
-  let { repo }: ViewProps = $props();
+  let { repo, track }: ViewProps = $props();
 
   const STATES: readonly { id: IssueState; label: string }[] = [
     { id: 'open', label: 'Open' },
@@ -15,11 +15,15 @@
 
   let selected = $state<IssueState>('open');
 
+  // Primitives, so a sidebar refresh that replaces `repo` with an equal one does not reload the list.
+  const owner = $derived(repo.ref.owner);
+  const name = $derived(repo.ref.name);
   const issues = $derived.by(() => {
-    const ref = repo.ref;
+    const ref = { owner, name };
     const which = selected;
-    return new Load(() => api.listIssues(ref, which));
+    return new Load('issues', () => api.listIssues(ref, which));
   });
+  $effect.pre(() => track(() => [issues]));
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
@@ -35,7 +39,7 @@
       {/each}
     </div>
   </div>
-  <LoadView load={issues} what="issues">
+  <LoadView load={issues}>
     {#snippet children(list)}
       {#if list.length === 0}
         <Notice title="{repo.ref.name} has no {selected} issues" />

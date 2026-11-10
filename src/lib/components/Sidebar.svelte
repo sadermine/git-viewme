@@ -19,7 +19,6 @@
   });
 </script>
 
-<h2>Repositories</h2>
 <input bind:value={filter} placeholder="Filter repositories" aria-label="Filter repositories" spellcheck="false" />
 <nav class="list" aria-label="Repositories">
   {#each groups as [owner, group] (owner)}
@@ -43,15 +42,6 @@
 </nav>
 
 <style>
-  h2 {
-    margin: 0;
-    padding: 10px 10px 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
   input {
     margin: 4px 10px 8px;
     padding: 4px 6px;

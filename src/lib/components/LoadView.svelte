@@ -3,18 +3,18 @@
   import type { Load } from '$lib/session.svelte';
   import { describeError } from '$lib/errors';
 
-  let { load, what, children }: { load: Load<T>; what: string; children: Snippet<[T]> } = $props();
+  let { load, children }: { load: Load<T>; children: Snippet<[T]> } = $props();
 </script>
 
-{#if load.current.kind === 'loading'}
-  <div class="placeholder" role="status">Loading the {what}…</div>
-{:else if load.current.kind === 'failed'}
+{#if load.current.state.kind === 'loading'}
+  <div class="placeholder" role="status">Loading the {load.what}…</div>
+{:else if load.current.state.kind === 'failed'}
   <div class="failed" role="alert">
-    <p>{describeError(load.current.error, what)}</p>
-    <button class="retry" onclick={() => load.retry()}>Retry</button>
+    <p>{describeError(load.current.state.error, load.what)}</p>
+    <button class="retry" onclick={() => load.refresh()}>Retry</button>
   </div>
 {:else}
-  {@render children(load.current.value)}
+  {@render children(load.current.state.value)}
 {/if}
 
 <style>

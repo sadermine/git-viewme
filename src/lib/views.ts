@@ -1,4 +1,5 @@
 import type { Component } from 'svelte';
+import type { Refreshable } from './refresh';
 import type { Repo } from './types';
 import type { RepoTabState } from './workspace.svelte';
 import FilesView from './views/FilesView.svelte';
@@ -10,6 +11,9 @@ export type ViewProps = {
   repo: Repo;
   tab: RepoTabState;
   update: (change: Partial<RepoTabState>) => void;
+  /** A view calls this once with the loads its content comes from. The header's Refresh refreshes
+   *  them and shows their status. A null entry is a load the view does not have right now. */
+  track: (loads: () => readonly (Refreshable | null)[]) => void;
 };
 
 /** The views inside a repository tab. The header's view buttons render from this list, so a new
