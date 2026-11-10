@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Only the token entry of [[guarded]] in sader-process.toml reads the OAuth token, so a reader in
-# any other file would run at prototype with no security review. This matches by name; #14 moves
-# the rule into the compiler.
+# The compiler keeps the token's value inside token.rs, but any file can call the keyring crate
+# itself and read the stored token. Rust source can come from any file (#[path], include!) and a
+# manifest can add the crate under another name, so every file is searched for the name, except
+# the ones that must name it.
 cd "$(git rev-parse --show-toplevel)" || exit 2
-git grep --untracked -nE 'load_token|secret[(]|get_password|keyring' -- '*.rs' \
-  ':!crates/core/src/token.rs' ':!crates/core/src/github.rs' ':!crates/core/src/auth.rs'
+git grep --untracked -n 'keyring' -- . \
+  ':!crates/core/src/token.rs' ':!crates/core/Cargo.toml' ':!Cargo.lock' ':!CLAUDE.md' \
+  ':!tools/check-token-readers.sh'
 case $? in
-  0) echo "The lines above read the token outside token.rs, github.rs and auth.rs." >&2; exit 1 ;;
+  0) echo "The lines above use the credential store outside crates/core/src/token.rs." >&2; exit 1 ;;
   1) exit 0 ;;
   *) exit 2 ;;
 esac

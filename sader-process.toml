@@ -25,8 +25,8 @@ command = "cargo clippy -p git-viewme-core"
 [[pre_push]]
 command = "cargo test -p git-viewme-core"
 
-# Only the token guard's files read the token, so a new reader elsewhere fails here instead of
-# passing at prototype with no security review.
+# Only token.rs uses the credential store crate, the one reader of the token the compiler cannot stop, so a
+# new one elsewhere fails here instead of passing at prototype with no security review.
 [[pre_push]]
 command = "bash tools/check-token-readers.sh"
 shell = "bash"

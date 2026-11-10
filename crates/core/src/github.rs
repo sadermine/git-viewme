@@ -7,7 +7,7 @@ use reqwest::{RequestBuilder, Response, StatusCode, Url};
 use serde_json::{Value, json};
 
 use crate::lists::{IssueCache, ListCache, PullRequestCache};
-use crate::token::{delete_token, load_token};
+use crate::token::{delete_token, http, send_authorized};
 use crate::{CoreError, RepoRef, error_for_graphql, error_for_status};
 
 const API: &str = "https://api.github.com";
@@ -53,12 +53,8 @@ pub(crate) struct Pages {
 
 impl Default for GitHub {
     fn default() -> Self {
-        let http = reqwest::Client::builder()
-            .user_agent(concat!("git-viewme/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("the HTTP client builds with static settings");
         Self {
-            http,
+            http: http(),
             account: AtomicU64::new(0),
             issues: Mutex::default(),
             pulls: Mutex::default(),
@@ -110,12 +106,10 @@ impl GitHub {
     }
 
     async fn send(&self, request: RequestBuilder) -> Result<Response, CoreError> {
-        let token = load_token()?.ok_or(CoreError::Unauthorized)?;
-        let response = request
-            .bearer_auth(token.secret())
+        let request = request
             .header("X-GitHub-Api-Version", "2022-11-28")
-            .send()
-            .await?;
+            .build()?;
+        let response = send_authorized(request).await?;
         let status = response.status();
         if is_answer(status) {
             return Ok(response);
@@ -309,8 +303,8 @@ fn api_url(segments: &[&str], query: &[(&str, &str)]) -> Url {
     url
 }
 
-/// The `rel="next"` URL of a `Link` header. `send` attaches the token to whatever URL it is given,
-/// so a next link that leaves the API is refused rather than followed.
+/// The `rel="next"` URL of a `Link` header. A next link that leaves the API is refused rather than
+/// followed.
 fn next_link(header: &str) -> Result<Option<Url>, CoreError> {
     let Some(target) = header.split(',').find_map(|link| {
         let (target, params) = link.split_once(';')?;

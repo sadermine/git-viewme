@@ -24,7 +24,7 @@ pub use lists::{IssueCache, ListCache, Listed, PullRequestCache};
 pub use pulls::{pull_request_changes_from_pages, pull_requests_from_graphql_pages};
 pub use repos::repos_from_pages;
 pub use settings::{ClientId, client_id, save_client_id};
-pub use token::{AccessToken, delete_token, is_signed_in, store_token};
+pub use token::{delete_token, is_signed_in};
 
 use serde::{Deserialize, Serialize};
 
