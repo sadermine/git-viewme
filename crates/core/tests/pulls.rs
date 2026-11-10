@@ -25,6 +25,7 @@ fn pull(number: u32, updated_at: &str) -> Value {
             "label": format!("sadermine:card/{number}"),
             "ref": format!("card/{number}"),
             "sha": "0123456789abcdef0123456789abcdef01234567",
+            "user": { "login": "sadermine" },
             "repo": repo(700, "sadermine")
         },
         "base": {
@@ -191,18 +192,32 @@ fn pull_request_changes_from_pages_shows_a_fork_head_with_its_owner() {
     let mut fork = pull(31, "2026-11-05T08:00:00Z");
     fork["head"]["label"] = json!("octocat:main");
     fork["head"]["ref"] = json!("main");
+    fork["head"]["user"] = json!({ "login": "octocat" });
     fork["head"]["repo"] = repo(900, "octocat");
     let mut deleted_fork = pull(32, "2026-11-04T08:00:00Z");
     deleted_fork["head"]["label"] = json!("octocat:patch");
     deleted_fork["head"]["ref"] = json!("patch");
+    deleted_fork["head"]["user"] = json!({ "login": "octocat" });
     deleted_fork["head"]["repo"] = Value::Null;
-    let body = json!([fork, deleted_fork, pull(30, "2026-11-03T08:00:00Z")]).to_string();
+    let mut deleted_account = pull(33, "2026-11-04T07:00:00Z");
+    deleted_account["head"]["label"] = json!("gone");
+    deleted_account["head"]["ref"] = json!("gone");
+    deleted_account["head"]["user"] = Value::Null;
+    deleted_account["head"]["repo"] = Value::Null;
+    let body = json!([
+        fork,
+        deleted_fork,
+        deleted_account,
+        pull(30, "2026-11-03T08:00:00Z")
+    ])
+    .to_string();
 
     assert_eq!(
         heads(&rest(&[body.as_str()])),
         [
             (31, "octocat:main".into()),
-            (32, "unknown:patch".into()),
+            (32, "octocat:patch".into()),
+            (33, "unknown:gone".into()),
             (30, "card/30".into())
         ]
     );
