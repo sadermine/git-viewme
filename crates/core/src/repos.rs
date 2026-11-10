@@ -15,7 +15,7 @@ query($after: String) {
         isPrivate
         defaultBranchRef { name }
         projectsV2(first: 20) {
-          nodes { number title owner { ... on User { login } ... on Organization { login } } }
+          nodes { number title url owner { ... on User { login } ... on Organization { login } } }
         }
       }
     }
@@ -61,6 +61,7 @@ pub fn repos_from_pages<'a>(
                         owner: project.owner.login,
                         number: project.number,
                         title: project.title,
+                        url: project.url,
                     })
                     .collect(),
             }
@@ -120,5 +121,6 @@ struct BranchName {
 struct ProjectNode {
     number: u32,
     title: String,
+    url: String,
     owner: Login,
 }

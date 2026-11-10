@@ -41,7 +41,14 @@
     <span class="spacer"></span>
     <RefreshControl {status} {refresh} title="Refresh this view (F5)" />
     {#if repo.default_branch}<span class="chip" title="Default branch">⎇ {repo.default_branch}</span>{/if}
-    {#if project}<span class="chip" title="Linked project">▦ {project.title}</span>{/if}
+    {#if project}
+      <button class="project" title="Linked project: {project.title}" aria-label="Linked project: {project.title}" onclick={() => api.openExternal(project.url)}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path d="M6 2.5v11M10 2.5v11" fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+      </button>
+    {/if}
     <button class="url link" title="Open {repo.html_url} in the browser" onclick={() => api.openExternal(repo.html_url)}>
       {displayUrl(repo)} ↗
     </button>
@@ -106,6 +113,16 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     font-size: 12px;
+  }
+  .project {
+    display: flex;
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 5px;
+  }
+  .project:hover {
+    background: var(--bg-hover);
   }
   /* The URL gives up its width first: it shrinks to an ellipsis before the chips shrink at all. */
   .url {
