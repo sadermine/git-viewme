@@ -273,7 +273,7 @@ fn graphql_pull(number: u32, state: &str, draft: bool, updated_at: &str) -> Valu
     json!({
         "number": number,
         "title": format!("Pull request {number}"),
-        "author": { "login": "sader-agents" },
+        "author": { "login": "sader-agents", "__typename": "User" },
         "labels": { "nodes": [{ "name": "feature" }] },
         "headRefName": format!("card/{number}"),
         "headRepositoryOwner": { "login": "sadermine" },
@@ -367,6 +367,24 @@ fn pull_requests_from_graphql_pages_maps_author_labels_branches_and_link() {
             },
         ]
     );
+}
+
+#[test]
+fn pull_requests_from_graphql_pages_shows_a_bot_author_as_rest_does() {
+    let mut bot = graphql_pull(16468, "MERGED", false, "2026-11-09T05:06:00Z");
+    bot["author"] = json!({ "login": "renovate", "__typename": "Bot" });
+    let page = graphql_page(
+        &[
+            bot,
+            graphql_pull(16467, "OPEN", false, "2026-11-08T05:06:00Z"),
+        ],
+        None,
+    );
+
+    let pulls = pull_requests_from_graphql_pages([page.as_str()]).unwrap();
+
+    let authors: Vec<&str> = pulls.iter().map(|pull| pull.author.as_str()).collect();
+    assert_eq!(authors, ["renovate[bot]", "sader-agents"]);
 }
 
 #[test]
