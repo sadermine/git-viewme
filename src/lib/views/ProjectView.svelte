@@ -59,8 +59,8 @@
       if (current !== null) placeCard(current, itemId, from.option_id, index);
       failure = { title, error: api.asCoreError(error) };
       if (failure.error.kind === 'unauthorized') session.lost();
-      if (refocus) void focusMoveButton(itemId);
     }
+    if (refocus) void focusMoveButton(itemId);
   }
 
   function failureMessage(error: CoreError): string {
@@ -74,8 +74,10 @@
     }
   }
 
+  /** Focuses the card's Move to button, unless the user has since focused something else. */
   async function focusMoveButton(itemId: string) {
     await tick();
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
     document.querySelector<HTMLElement>(`[data-move="${CSS.escape(itemId)}"]`)?.focus();
   }
 
@@ -199,8 +201,10 @@
                           data-move={card.item_id}
                           aria-haspopup="menu"
                           aria-expanded={menuFor === card.item_id}
-                          disabled={busy}
-                          onclick={() => (menuFor = menuFor === card.item_id ? null : card.item_id)}
+                          aria-disabled={busy}
+                          onclick={() => {
+                            if (!busy) menuFor = menuFor === card.item_id ? null : card.item_id;
+                          }}
                         >
                           {busy ? 'Moving…' : 'Move to'}
                         </button>
@@ -370,7 +374,7 @@
     background: var(--bg);
     font-size: 12px;
   }
-  .move-button:hover:not(:disabled) {
+  .move-button:hover:not([aria-disabled='true']) {
     color: var(--text);
     background: var(--bg-hover);
   }

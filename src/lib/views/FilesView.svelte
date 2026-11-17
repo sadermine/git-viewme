@@ -3,6 +3,7 @@
   import * as api from '$lib/api';
   import LoadView from '$lib/components/LoadView.svelte';
   import Notice from '$lib/components/Notice.svelte';
+  import { chain } from '$lib/refresh';
   import { Load } from '$lib/session.svelte';
   import type { TreeEntry } from '$lib/types';
   import type { ViewProps } from '$lib/views';
@@ -29,7 +30,17 @@
     return branch === null || path === null ? null : new Load('file', () => api.fileContent(ref, branch, path));
   });
 
-  $effect.pre(() => track(() => [tree, content]));
+  // One definition decides both the "no longer exists" notice and whether a refresh asks for the file.
+  const listed = $derived(
+    tree?.current.state.kind === 'ready' &&
+      selectedPath !== null &&
+      tree.current.state.value.some((entry) => entry.path === selectedPath),
+  );
+
+  // A refresh asks for the file only once the tree has answered and still lists it (#44).
+  const files = $derived(tree && chain(tree, () => (listed ? content : null)));
+
+  $effect.pre(() => track(() => [files]));
 
   /** Relies on core returning the tree depth first, so a collapsed folder's contents follow it. */
   function visible(entries: TreeEntry[]): TreeEntry[] {
@@ -96,7 +107,7 @@
         <section class="content">
           {#if content === null || selectedPath === null}
             <Notice title="No file open">Pick a file from the tree.</Notice>
-          {:else if !entries.some((entry) => entry.path === selectedPath)}
+          {:else if !listed}
             <Notice title="{baseName(selectedPath)} no longer exists">It is not on {branch} any more. Pick another file from the tree.</Notice>
           {:else}
             <div class="crumbs" aria-label="Path">
