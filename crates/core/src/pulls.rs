@@ -16,7 +16,7 @@ query($owner: String!, $name: String!, $states: [PullRequestState!], $after: Str
       nodes {
         number
         title
-        author { login }
+        author { login __typename }
         labels(first: 100) { nodes { name } }
         headRefName
         headRepositoryOwner { login }
@@ -131,7 +131,7 @@ pub fn pull_requests_from_graphql_pages<'a>(
                         title: node.title,
                         author: node
                             .author
-                            .map_or_else(|| "ghost".into(), |user| user.login),
+                            .map_or_else(|| "ghost".into(), GraphqlAuthor::rest_login),
                         labels: node
                             .labels
                             .nodes
@@ -254,7 +254,7 @@ struct GraphqlConnection {
 struct GraphqlPull {
     number: u32,
     title: String,
-    author: Option<Login>,
+    author: Option<GraphqlAuthor>,
     labels: GraphqlLabels,
     head_ref_name: String,
     head_repository_owner: Option<Login>,
@@ -264,6 +264,24 @@ struct GraphqlPull {
     is_draft: bool,
     updated_at: String,
     url: String,
+}
+
+/// GraphQL gives a `Bot` its login without the `[bot]` that REST's `user.login` carries.
+#[derive(Deserialize)]
+struct GraphqlAuthor {
+    login: String,
+    #[serde(rename = "__typename")]
+    typename: String,
+}
+
+impl GraphqlAuthor {
+    fn rest_login(self) -> String {
+        if self.typename == "Bot" {
+            format!("{}[bot]", self.login)
+        } else {
+            self.login
+        }
+    }
 }
 
 #[derive(Deserialize)]
