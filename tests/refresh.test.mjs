@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { begin, combine, firstLoad, settle, SingleFlight, updatedLabel } from '../src/lib/refresh.ts';
+import { begin, chain, combine, firstLoad, settle, SingleFlight, updatedLabel } from '../src/lib/refresh.ts';
 
 const NETWORK = { kind: 'network' };
 
@@ -76,4 +76,82 @@ test('the Updated label counts whole minutes', () => {
   assert.equal(updatedLabel(0, 59 * 60_000 + 59_999), 'Updated 59 min ago');
   assert.equal(updatedLabel(0, 3 * 3_600_000), 'Updated 3 h ago');
   assert.equal(updatedLabel(0, 2 * 86_400_000), 'Updated 2 d ago');
+});
+
+/** A hand-rolled load. Each refresh logs its start and end and waits for `answer` before it
+ *  settles at the time `at` holds then. */
+function fakeLoad(name, log, status) {
+  const load = {
+    status,
+    refreshes: 0,
+    at: null,
+    answer: null,
+    refresh() {
+      load.refreshes += 1;
+      log.push(`${name} start`);
+      return new Promise((resolve) => {
+        load.answer = () => {
+          log.push(`${name} end`);
+          load.status = { refreshing: false, failure: null, finishedAt: load.at, succeededAt: load.at };
+          resolve();
+        };
+      });
+    },
+  };
+  return load;
+}
+
+const settled = (at) => ({ refreshing: false, failure: null, finishedAt: at, succeededAt: at });
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('a load the first one drops is never requested and leaves the status', async () => {
+  const log = [];
+  const tree = fakeLoad('tree', log, settled(1_000));
+  const file = fakeLoad('file', log, { refreshing: false, failure: { what: 'file', error: NETWORK }, finishedAt: 2_000, succeededAt: 500 });
+  let listed = true;
+  const files = chain(tree, () => (listed ? file : null));
+
+  const done = files.refresh();
+  tree.at = 3_000;
+  listed = false;
+  tree.answer();
+  await done;
+
+  assert.equal(file.refreshes, 0);
+  assert.equal(files.status.failure, null);
+  assert.equal(files.status.succeededAt, 3_000);
+});
+
+test('a load still listed is refreshed after the first settles, not alongside it', async () => {
+  const log = [];
+  const tree = fakeLoad('tree', log, settled(1_000));
+  const file = fakeLoad('file', log, settled(1_000));
+  const files = chain(tree, () => file);
+
+  const done = files.refresh();
+  assert.deepEqual(log, ['tree start']);
+  tree.at = 2_000;
+  tree.answer();
+  await tick();
+  assert.deepEqual(log, ['tree start', 'tree end', 'file start']);
+  file.at = 2_500;
+  file.answer();
+  await done;
+  assert.equal(files.status.succeededAt, 2_000);
+});
+
+test('refreshes asked for while a chain runs refresh each load once', async () => {
+  const log = [];
+  const tree = fakeLoad('tree', log, settled(1_000));
+  const file = fakeLoad('file', log, settled(1_000));
+  const files = chain(tree, () => file);
+
+  const clicks = Array.from({ length: 5 }, () => files.refresh());
+  tree.answer();
+  await tick();
+  file.answer();
+  await Promise.all(clicks);
+
+  assert.equal(tree.refreshes, 1);
+  assert.equal(file.refreshes, 1);
 });
