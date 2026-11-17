@@ -86,6 +86,24 @@ export function combine(statuses: readonly RefreshStatus[]): RefreshStatus {
   };
 }
 
+/** A view whose second load depends on the first's answer. A refresh refreshes `first`, then the
+ *  load `next` returns once `first` has settled, so a load `next` drops is never requested. The
+ *  status leaves out a dropped load. Refreshes asked for while one runs join it. */
+export function chain(first: Refreshable, next: () => Refreshable | null): Refreshable {
+  const flight = new SingleFlight();
+  return {
+    get status() {
+      const second = next();
+      return second === null ? first.status : combine([first.status, second.status]);
+    },
+    refresh: () =>
+      flight.run(async () => {
+        await first.refresh();
+        await next()?.refresh();
+      }),
+  };
+}
+
 export function updatedLabel(at: number, now: number): string {
   const minutes = Math.floor((now - at) / 60_000);
   if (minutes < 1) return 'Updated less than a minute ago';
