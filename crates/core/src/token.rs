@@ -1,4 +1,5 @@
 use std::sync::LazyLock;
+use std::time::Duration;
 
 use keyring::{Entry, Error as KeyringError};
 use reqwest::header::{AUTHORIZATION, HeaderValue};
@@ -9,6 +10,9 @@ use crate::CoreError;
 const SERVICE: &str = "git-viewme";
 const ACCOUNT: &str = "github";
 const API_HOST: &str = "api.github.com";
+
+/// How long any request may take, from sending it to reading the last byte of the reply.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A GitHub OAuth token. It has no `Serialize` and its `Debug` hides the value, so no Tauri
 /// command can return it and no log line can print it. Its value and `load_token` are private to
@@ -40,10 +44,13 @@ pub(crate) fn store_token(token: &AccessToken) -> Result<(), CoreError> {
 }
 
 /// The client that sends the token. It lives here so that no caller can hand `send_authorized` a
-/// client that resolves the API host to another address or accepts any certificate.
+/// client that resolves the API host to another address or accepts any certificate. Every request
+/// on it, authorized or not, gives up after `REQUEST_TIMEOUT`, so a reply that never comes ends in
+/// `CoreError::Network` rather than a wait that lasts until the app closes.
 static HTTP: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .user_agent(concat!("git-viewme/", env!("CARGO_PKG_VERSION")))
+        .timeout(REQUEST_TIMEOUT)
         .build()
         .expect("the HTTP client builds with static settings")
 });
@@ -143,5 +150,26 @@ mod tests {
         let value = &request.headers()[AUTHORIZATION];
         assert_eq!(value, "Bearer gho_test");
         assert!(value.is_sensitive());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn http_gives_up_on_a_reply_that_never_comes_with_a_network_error() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // Accepts the connection and holds it open without ever writing a reply.
+        std::thread::spawn(move || {
+            let held: Vec<_> = listener.incoming().collect();
+            drop(held);
+        });
+
+        let sent = tokio::time::timeout(
+            Duration::from_secs(120),
+            http().get(format!("http://127.0.0.1:{port}/")).send(),
+        )
+        .await
+        .expect("the client never gave up on a silent server");
+
+        let error = sent.expect_err("a silent server sent no reply");
+        assert_eq!(CoreError::from(error), CoreError::Network);
     }
 }
