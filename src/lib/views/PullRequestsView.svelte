@@ -1,10 +1,10 @@
 <script lang="ts">
-  import * as api from '$lib/api';
-  import LoadView from '$lib/components/LoadView.svelte';
-  import Notice from '$lib/components/Notice.svelte';
-  import { Load } from '$lib/session.svelte';
-  import type { PullRequestState, PullRequestStatus } from '$lib/types';
-  import type { ViewProps } from '$lib/views';
+  import * as api from '#lib/api.ts';
+  import LoadView from '#lib/components/LoadView.svelte';
+  import Notice from '#lib/components/Notice.svelte';
+  import { Load } from '#lib/session.svelte.ts';
+  import type { PullRequestState, PullRequestStatus } from '#lib/types.ts';
+  import type { ViewProps } from '#lib/views.ts';
 
   let { repo, track }: ViewProps = $props();
 

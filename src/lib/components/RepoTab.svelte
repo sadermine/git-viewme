@@ -1,8 +1,8 @@
 <script lang="ts">
-  import * as api from '$lib/api';
-  import { combine, type Refreshable } from '$lib/refresh';
-  import type { Repo } from '$lib/types';
-  import { VIEWS, type ViewId, type ViewProps } from '$lib/views';
+  import * as api from '#lib/api.ts';
+  import { combine, type Refreshable } from '#lib/refresh.ts';
+  import type { Repo } from '#lib/types.ts';
+  import { VIEWS, type ViewId, type ViewProps } from '#lib/views.ts';
   import RefreshControl from './RefreshControl.svelte';
 
   let { repo, tab, update, refusals, hidden }: Omit<ViewProps, 'track'> & { hidden: boolean } = $props();

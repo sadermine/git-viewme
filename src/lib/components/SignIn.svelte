@@ -1,8 +1,8 @@
 <script lang="ts">
-  import * as api from '$lib/api';
-  import { describeError } from '$lib/errors';
-  import { session } from '$lib/session.svelte';
-  import type { CoreError, DevicePrompt } from '$lib/types';
+  import * as api from '#lib/api.ts';
+  import { describeError } from '#lib/errors.ts';
+  import { session } from '#lib/session.svelte.ts';
+  import type { CoreError, DevicePrompt } from '#lib/types.ts';
 
   const REGISTER_URL = 'https://github.com/settings/applications/new';
 

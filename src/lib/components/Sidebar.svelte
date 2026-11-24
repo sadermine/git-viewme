@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { repoKey, type Repo } from '$lib/types';
-  import type { Workspace } from '$lib/workspace.svelte';
+  import { repoKey, type Repo } from '#lib/types.ts';
+  import type { Workspace } from '#lib/workspace.svelte.ts';
 
   let { repos, workspace }: { repos: Repo[]; workspace: Workspace } = $props();
 
