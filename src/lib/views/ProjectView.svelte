@@ -171,84 +171,88 @@
             <button onclick={() => projectKey !== null && refusals.delete(projectKey)}>Dismiss</button>
           </div>
         {/if}
-        <div class="board">
-          {#each value.columns as column (column.option_id ?? '')}
-            {@const targets = moveTargets(value, column)}
-            <section
-              class="column"
-              class:target={dropTarget === column}
-              aria-label={column.name}
-              ondragover={(event) => dragOver(event, column)}
-              ondragleave={(event) => dragLeave(event, column)}
-              ondrop={(event) => drop(event, value, column)}
-            >
-              <header>
-                <span class="name">{column.name}</span>
-                <span class="count">{column.cards.length}</span>
-              </header>
-              <div class="cards">
-                {#each column.cards as card (card.item_id)}
-                  {@const busy = pending[card.item_id] !== undefined}
-                  <article
-                    class="card"
-                    data-card={card.item_id}
-                    class:dragging={dragging === card.item_id}
-                    aria-busy={busy}
-                    draggable={targets.length > 0 && !busy}
-                    ondragstart={(event) => startDrag(event, card.item_id)}
-                    ondragend={endDrag}
-                  >
-                    <button class="open" title={card.url} onclick={() => api.openExternal(card.url)}>
-                      <span class="title">{card.title}</span>
-                      {#if card.number !== null}<span class="number">#{card.number}</span>{/if}
-                      {#if card.labels.length > 0}
-                        <span class="labels">
-                          {#each card.labels as label (label)}<span class="label">{label}</span>{/each}
-                        </span>
-                      {/if}
-                    </button>
-                    {#if targets.length > 0 || busy}
-                      <div class="move" onfocusout={leaveMenu}>
-                        <button
-                          class="move-button"
-                          data-move={card.item_id}
-                          aria-haspopup="menu"
-                          aria-expanded={menuFor === card.item_id}
-                          aria-disabled={busy}
-                          onclick={() => {
-                            if (!busy) menuFor = menuFor === card.item_id ? null : card.item_id;
-                          }}
-                        >
-                          {busy ? 'Moving…' : 'Move to'}
-                        </button>
-                        {#if menuFor === card.item_id}
-                          <div
-                            class="menu"
-                            role="menu"
-                            tabindex="-1"
-                            aria-label="Move {card.title} to"
-                            {@attach focusFirstItem}
-                            onkeydown={(event) => menuKey(event, card.item_id)}
-                          >
-                            {#each targets as target (target.option_id)}
-                              <button
-                                role="menuitem"
-                                onclick={() => {
-                                  menuFor = null;
-                                  void move(value, card.item_id, target, true);
-                                }}>{target.name}</button
-                              >
-                            {/each}
-                          </div>
+        {#if value.columns.length === 0}
+          <Notice title="This project has no items." />
+        {:else}
+          <div class="board">
+            {#each value.columns as column (column.option_id ?? '')}
+              {@const targets = moveTargets(value, column)}
+              <section
+                class="column"
+                class:target={dropTarget === column}
+                aria-label={column.name}
+                ondragover={(event) => dragOver(event, column)}
+                ondragleave={(event) => dragLeave(event, column)}
+                ondrop={(event) => drop(event, value, column)}
+              >
+                <header>
+                  <span class="name">{column.name}</span>
+                  <span class="count">{column.cards.length}</span>
+                </header>
+                <div class="cards">
+                  {#each column.cards as card (card.item_id)}
+                    {@const busy = pending[card.item_id] !== undefined}
+                    <article
+                      class="card"
+                      data-card={card.item_id}
+                      class:dragging={dragging === card.item_id}
+                      aria-busy={busy}
+                      draggable={targets.length > 0 && !busy}
+                      ondragstart={(event) => startDrag(event, card.item_id)}
+                      ondragend={endDrag}
+                    >
+                      <button class="open" title={card.url} onclick={() => api.openExternal(card.url)}>
+                        <span class="title">{card.title}</span>
+                        {#if card.number !== null}<span class="number">#{card.number}</span>{/if}
+                        {#if card.labels.length > 0}
+                          <span class="labels">
+                            {#each card.labels as label (label)}<span class="label">{label}</span>{/each}
+                          </span>
                         {/if}
-                      </div>
-                    {/if}
-                  </article>
-                {/each}
-              </div>
-            </section>
-          {/each}
-        </div>
+                      </button>
+                      {#if targets.length > 0 || busy}
+                        <div class="move" onfocusout={leaveMenu}>
+                          <button
+                            class="move-button"
+                            data-move={card.item_id}
+                            aria-haspopup="menu"
+                            aria-expanded={menuFor === card.item_id}
+                            aria-disabled={busy}
+                            onclick={() => {
+                              if (!busy) menuFor = menuFor === card.item_id ? null : card.item_id;
+                            }}
+                          >
+                            {busy ? 'Moving…' : 'Move to'}
+                          </button>
+                          {#if menuFor === card.item_id}
+                            <div
+                              class="menu"
+                              role="menu"
+                              tabindex="-1"
+                              aria-label="Move {card.title} to"
+                              {@attach focusFirstItem}
+                              onkeydown={(event) => menuKey(event, card.item_id)}
+                            >
+                              {#each targets as target (target.option_id)}
+                                <button
+                                  role="menuitem"
+                                  onclick={() => {
+                                    menuFor = null;
+                                    void move(value, card.item_id, target, true);
+                                  }}>{target.name}</button
+                                >
+                              {/each}
+                            </div>
+                          {/if}
+                        </div>
+                      {/if}
+                    </article>
+                  {/each}
+                </div>
+              </section>
+            {/each}
+          </div>
+        {/if}
       </div>
     {/snippet}
   </LoadView>
