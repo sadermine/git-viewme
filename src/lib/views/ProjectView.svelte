@@ -28,7 +28,7 @@
   $effect.pre(() => track(() => [board]));
   const projectsUrl = $derived(`https://github.com/${repo.ref.owner}/${repo.ref.name}/projects`);
 
-  let failure = $state<{ title: string; error: CoreError } | null>(null);
+  let failures = $state<{ itemId: string; title: string; error: CoreError }[]>([]);
   let dragging = $state<string | null>(null);
   let dropTarget = $state<Column | null>(null);
   let menuFor = $state<string | null>(null);
@@ -46,7 +46,7 @@
     const index = from.cards.findIndex((card) => card.item_id === itemId);
     const title = from.cards[index].title;
     placeCard(value, itemId, optionId);
-    failure = null;
+    failures = failures.filter((each) => each.itemId !== itemId);
     pending[itemId] = optionId;
     if (refocus) void focusMoveButton(itemId);
     try {
@@ -57,8 +57,9 @@
       delete pending[itemId];
       const current = shown();
       if (current !== null) placeCard(current, itemId, from.option_id, index);
-      failure = { title, error: api.asCoreError(error) };
-      if (failure.error.kind === 'unauthorized') session.lost();
+      const refusal = { itemId, title, error: api.asCoreError(error) };
+      failures = [...failures.filter((each) => each.itemId !== itemId), refusal];
+      if (refusal.error.kind === 'unauthorized') session.lost();
     }
     if (refocus) void focusMoveButton(itemId);
   }
@@ -151,13 +152,17 @@
     {#snippet children(value)}
       {@const movable = value.status_field_id !== null}
       <div class="project">
-        {#if failure !== null}
+        {#if failures.length > 0}
           <div class="failure" role="alert">
-            <p>"{failure.title}" went back to its lane. {failureMessage(failure.error)}</p>
-            {#if failure.error.kind === 'missing_scope'}
+            <div class="lines">
+              {#each failures as refusal (refusal.itemId)}
+                <p>"{refusal.title}" went back to its lane. {failureMessage(refusal.error)}</p>
+              {/each}
+            </div>
+            {#if failures.some((each) => each.error.kind === 'missing_scope')}
               <button onclick={() => session.signOut()}>Sign out and sign in again</button>
             {/if}
-            <button onclick={() => (failure = null)}>Dismiss</button>
+            <button onclick={() => (failures = [])}>Dismiss</button>
           </div>
         {/if}
         <div class="board">
@@ -260,8 +265,13 @@
     border: 1px solid var(--danger);
     border-radius: 6px;
   }
-  .failure p {
+  .failure .lines {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .failure p {
     margin: 0;
     color: var(--danger);
   }
