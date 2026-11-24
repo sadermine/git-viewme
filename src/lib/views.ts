@@ -16,7 +16,7 @@ export type ViewProps = {
    *  them and shows their status. A null entry is a load the view does not have right now. */
   track: (loads: () => readonly (Refreshable | null)[]) => void;
   /** The workspace's refused card moves, keyed by project "owner/number", which outlive the tab. */
-  refusals: SvelteMap<string, MoveRefusal>;
+  refusals: SvelteMap<string, MoveRefusal[]>;
 };
 
 /** The views inside a repository tab. The header's view buttons render from this list, so a new

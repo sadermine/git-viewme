@@ -29,7 +29,7 @@
   const projectsUrl = $derived(`https://github.com/${repo.ref.owner}/${repo.ref.name}/projects`);
 
   // Kept in the workspace, so a refusal that arrives after the tab closed shows when it reopens.
-  const failure = $derived(projectKey === null ? null : (refusals.get(projectKey) ?? null));
+  const failures = $derived(projectKey === null ? [] : (refusals.get(projectKey) ?? []));
   let dragging = $state<string | null>(null);
   let dropTarget = $state<Column | null>(null);
   let menuFor = $state<string | null>(null);
@@ -50,7 +50,7 @@
     const index = from.cards.findIndex((card) => card.item_id === itemId);
     const title = from.cards[index].title;
     placeCard(value, itemId, optionId);
-    store.delete(key);
+    store.set(key, (store.get(key) ?? []).filter((each) => each.itemId !== itemId));
     pending[itemId] = optionId;
     if (refocus) void focusCard(itemId);
     try {
@@ -60,8 +60,8 @@
     } catch (error) {
       delete pending[itemId];
       // Recorded before the board is touched: after the tab closed, shown() reads a destroyed view.
-      const refusal = { title, error: api.asCoreError(error) };
-      store.set(key, refusal);
+      const refusal = { itemId, title, error: api.asCoreError(error) };
+      store.set(key, [...(store.get(key) ?? []).filter((each) => each.itemId !== itemId), refusal]);
       const current = shown();
       if (current !== null) placeCard(current, itemId, from.option_id, index);
       if (refusal.error.kind === 'unauthorized') session.lost();
@@ -158,10 +158,14 @@
   <LoadView load={board}>
     {#snippet children(value)}
       <div class="project">
-        {#if failure !== null}
+        {#if failures.length > 0}
           <div class="failure" role="alert">
-            <p>"{failure.title}" went back to its lane. {failureMessage(failure.error)}</p>
-            {#if failure.error.kind === 'missing_scope'}
+            <div class="lines">
+              {#each failures as refusal (refusal.itemId)}
+                <p>"{refusal.title}" went back to its lane. {failureMessage(refusal.error)}</p>
+              {/each}
+            </div>
+            {#if failures.some((each) => each.error.kind === 'missing_scope')}
               <button onclick={() => session.signOut()}>Sign out and sign in again</button>
             {/if}
             <button onclick={() => projectKey !== null && refusals.delete(projectKey)}>Dismiss</button>
@@ -267,8 +271,13 @@
     border: 1px solid var(--danger);
     border-radius: 6px;
   }
-  .failure p {
+  .failure .lines {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .failure p {
     margin: 0;
     color: var(--danger);
   }
