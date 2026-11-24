@@ -319,3 +319,12 @@ fn board_from_pages_option_named_no_status_and_the_no_status_lane_are_two_column
         ]
     );
 }
+
+#[test]
+fn board_from_pages_option_named_no_status_in_another_case_or_spacing_still_renames_the_app_lane() {
+    let body = page(status_field(&[" no STATUS "]), json!([issue(None, 1)]));
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(board.columns[0].name, "Status not set");
+}
