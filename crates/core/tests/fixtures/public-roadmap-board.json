@@ -36,7 +36,8 @@
               "isArchived": false,
               "fullDatabaseId": "94970791",
               "fieldValueByName": {
-                "name": "Paused"
+                "name": "Paused",
+                "optionId": "0b6e37be"
               },
               "content": {
                 "title": "Report code scanning status information at the organisation level [GA]",
@@ -65,7 +66,8 @@
               "isArchived": false,
               "fullDatabaseId": "184493",
               "fieldValueByName": {
-                "name": "Up Next"
+                "name": "Up Next",
+                "optionId": "f75ad846"
               },
               "content": {
                 "title": "Push Protections (Beta)",

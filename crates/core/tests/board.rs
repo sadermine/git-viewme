@@ -6,7 +6,8 @@ use serde_json::{Value, json};
 const PROJECT_URL: &str = "https://github.com/users/sadermine/projects/7";
 
 /// The first page of the board query against GitHub's public roadmap project, trimmed to three
-/// items: one `Paused`, one `Up Next` and one with no status.
+/// items: one `Paused`, one `Up Next` and one with no status. The two `optionId` values were
+/// added after the recording, from a later read of the same project.
 const RECORDED: &str = include_str!("fixtures/public-roadmap-board.json");
 
 fn page(field: Value, items: Value) -> String {
@@ -32,7 +33,8 @@ fn issue(status: Option<&str>, number: u32) -> Value {
         "id": format!("PVTI_{number}"),
         "isArchived": false,
         "fullDatabaseId": format!("{number}00"),
-        "fieldValueByName": status.map(|name| json!({ "name": name })),
+        "fieldValueByName": status
+            .map(|name| json!({ "name": name, "optionId": format!("id-{name}") })),
         "content": {
             "title": format!("Issue {number}"),
             "number": number,
@@ -40,6 +42,25 @@ fn issue(status: Option<&str>, number: u32) -> Value {
             "labels": { "nodes": [{ "name": "bug" }] }
         }
     })
+}
+
+/// Each column as its name, its option ID and the IDs of its cards, in board order.
+fn columns(board: &Board) -> Vec<(&str, Option<&str>, Vec<&str>)> {
+    board
+        .columns
+        .iter()
+        .map(|column| {
+            (
+                column.name.as_str(),
+                column.option_id.as_deref(),
+                column
+                    .cards
+                    .iter()
+                    .map(|card| card.item_id.as_str())
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 fn counts(board: &Board) -> Vec<(&str, usize)> {
@@ -131,7 +152,7 @@ fn board_from_pages_draft_has_title_only_and_opens_in_the_project() {
         "id": "PVTI_draft",
         "isArchived": false,
         "fullDatabaseId": "555",
-        "fieldValueByName": { "name": "Backlog" },
+        "fieldValueByName": { "name": "Backlog", "optionId": "id-Backlog" },
         "content": { "title": "Draft idea" }
     });
     let body = page(status_field(&["Backlog"]), json!([draft]));
@@ -180,23 +201,8 @@ fn board_from_pages_recorded_board_carries_the_ids_a_move_names() {
         board.status_field_id.as_deref(),
         Some("PVTSSF_lADNJr_NE13Nml4")
     );
-    let columns: Vec<(&str, Option<&str>, Vec<&str>)> = board
-        .columns
-        .iter()
-        .map(|column| {
-            (
-                column.name.as_str(),
-                column.option_id.as_deref(),
-                column
-                    .cards
-                    .iter()
-                    .map(|card| card.item_id.as_str())
-                    .collect(),
-            )
-        })
-        .collect();
     assert_eq!(
-        columns,
+        columns(&board),
         [
             ("No status", None, vec!["PVTI_lADNJr_NE13OA0SSnA"]),
             ("Up Next", Some("f75ad846"), vec!["PVTI_lADNJr_NE13OAALQrQ"]),
@@ -270,4 +276,55 @@ fn card_move_without_an_option_is_refused_so_no_card_moves_to_no_status() {
     }));
 
     assert!(card_move.is_err());
+}
+
+#[test]
+fn board_from_pages_options_with_the_same_name_each_keep_their_own_cards() {
+    let field = json!({ "id": "PVTSSF_status", "options": [
+        { "id": "opt-a", "name": "Done" },
+        { "id": "opt-b", "name": "Done" },
+    ]});
+    let mut first = issue(None, 1);
+    first["fieldValueByName"] = json!({ "name": "Done", "optionId": "opt-a" });
+    let mut second = issue(None, 2);
+    second["fieldValueByName"] = json!({ "name": "Done", "optionId": "opt-b" });
+    let body = page(field, json!([first, second]));
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(
+        columns(&board),
+        [
+            ("Done", Some("opt-a"), vec!["PVTI_1"]),
+            ("Done", Some("opt-b"), vec!["PVTI_2"]),
+        ]
+    );
+}
+
+#[test]
+fn board_from_pages_option_named_no_status_and_the_no_status_lane_are_two_columns() {
+    let body = page(
+        status_field(&["Backlog", "No status"]),
+        json!([issue(None, 1), issue(Some("No status"), 2)]),
+    );
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(
+        columns(&board),
+        [
+            ("Status not set", None, vec!["PVTI_1"]),
+            ("Backlog", Some("id-Backlog"), vec![]),
+            ("No status", Some("id-No status"), vec!["PVTI_2"]),
+        ]
+    );
+}
+
+#[test]
+fn board_from_pages_option_named_no_status_in_another_case_or_spacing_still_renames_the_app_lane() {
+    let body = page(status_field(&[" no STATUS "]), json!([issue(None, 1)]));
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert_eq!(board.columns[0].name, "Status not set");
 }

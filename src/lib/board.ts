@@ -1,5 +1,5 @@
 // Card placement on a board the interface already holds. Plain TypeScript so `npm test` runs it.
-import type { Board } from './types';
+import type { Board, Column } from './types';
 
 /** Moves a card to the lane with `optionId`, at `index` or at the end. Does nothing and returns
  *  false when the card or the lane is not on the board. */
@@ -23,4 +23,10 @@ export function withPendingMoves(board: Board, pending: Readonly<Record<string, 
     if (lane?.option_id !== optionId) placeCard(board, itemId, optionId);
   }
   return board;
+}
+
+/** The lanes a card in `column` can move to: every other lane that is a Status option. Never the
+ *  app's own lane of items with no status, since no move clears a card's Status. */
+export function moveTargets(board: Board, column: Column): Column[] {
+  return board.columns.filter((target) => target !== column && target.option_id !== null);
 }

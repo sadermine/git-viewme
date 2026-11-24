@@ -3,8 +3,13 @@ use serde_json::{Value, json};
 
 use crate::{Board, Card, CardMove, Column, CoreError, GitHub, ProjectRef};
 
-/// The column for items with no status, or every item when the project has no `Status` field.
+/// The app's own column, for items with no status or every item when the project has no
+/// `Status` field.
 const NO_STATUS: &str = "No status";
+
+/// The app's own column's name when a `Status` option is already named [`NO_STATUS`], so the two
+/// columns read differently.
+const STATUS_NOT_SET: &str = "Status not set";
 
 const QUERY: &str = r#"
 query($owner: String!, $number: Int!, $after: String) {
@@ -20,7 +25,7 @@ query($owner: String!, $number: Int!, $after: String) {
             id
             isArchived
             fullDatabaseId
-            fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+            fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { optionId } }
             content {
               ... on Issue { title number url labels(first: 20) { nodes { name } } }
               ... on PullRequest { title number url labels(first: 20) { nodes { name } } }
@@ -72,7 +77,10 @@ pub fn card_move_request(card_move: &CardMove) -> Value {
 }
 
 /// Groups every page of the project-items GraphQL query into columns. The columns follow the
-/// options of the project's `Status` field, with "No status" first when any item has no status.
+/// options of the project's `Status` field, with the app's own column first when any item has no
+/// status. Each item goes in the column of its option ID, never its option's name, because two
+/// options can share a name. The app's column is "No status", or "Status not set" when an option
+/// is already named "No status".
 /// Archived items are left out, as on GitHub's board.
 pub fn board_from_pages<'a>(pages: impl IntoIterator<Item = &'a str>) -> Result<Board, CoreError> {
     let mut statuses: Option<Vec<StatusOption>> = None;
@@ -104,9 +112,9 @@ pub fn board_from_pages<'a>(pages: impl IntoIterator<Item = &'a str>) -> Result<
             .into_iter()
             .filter(|item| !item.is_archived)
         {
-            let status = item.field_value_by_name.and_then(|value| value.name);
+            let status = item.field_value_by_name.and_then(|value| value.option_id);
             let card = card(item.id, item.content, item.full_database_id, &project.url);
-            match status.and_then(|name| options.iter().position(|option| option.name == name)) {
+            match status.and_then(|id| options.iter().position(|option| option.id == id)) {
                 Some(index) => by_status[index].push(card),
                 None => no_status.push(card),
             }
@@ -116,8 +124,11 @@ pub fn board_from_pages<'a>(pages: impl IntoIterator<Item = &'a str>) -> Result<
     let options = statuses.unwrap_or_default();
     let mut columns = Vec::with_capacity(options.len() + 1);
     if !no_status.is_empty() {
+        let taken = options
+            .iter()
+            .any(|option| option.name.trim().eq_ignore_ascii_case(NO_STATUS));
         columns.push(Column {
-            name: NO_STATUS.to_owned(),
+            name: if taken { STATUS_NOT_SET } else { NO_STATUS }.to_owned(),
             option_id: None,
             cards: no_status,
         });
@@ -236,8 +247,9 @@ struct Item {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StatusValue {
-    name: Option<String>,
+    option_id: Option<String>,
 }
 
 #[derive(Deserialize)]

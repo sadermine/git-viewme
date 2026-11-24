@@ -88,7 +88,8 @@ pub struct Board {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Column {
     pub name: String,
-    /// The `Status` option the column shows. `None` for "No status".
+    /// The `Status` option the column shows. `None` for the app's own column of items with no
+    /// status.
     pub option_id: Option<String>,
     pub cards: Vec<Card>,
 }
@@ -103,7 +104,8 @@ pub struct Card {
     pub labels: Vec<String>,
 }
 
-/// Sets one project item's `Status` to an option. Nothing clears it, so no card moves to "No status".
+/// Sets one project item's `Status` to an option. Nothing clears it, so no card moves to the app's
+/// own column of items with no status.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct CardMove {
     pub project_id: String,
