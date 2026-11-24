@@ -5,7 +5,7 @@
   import { VIEWS, type ViewId, type ViewProps } from '$lib/views';
   import RefreshControl from './RefreshControl.svelte';
 
-  let { repo, tab, update, hidden }: Omit<ViewProps, 'track'> & { hidden: boolean } = $props();
+  let { repo, tab, update, refusals, hidden }: Omit<ViewProps, 'track'> & { hidden: boolean } = $props();
 
   // A view mounts the first time it is shown and then stays mounted, so its data and its folder
   // state survive switching views and tabs.
@@ -57,7 +57,7 @@
   {#each VIEWS as view (view.id)}
     {#if shown.includes(view.id)}
       <div class="view" hidden={tab.view !== view.id}>
-        <view.component {repo} {tab} {update} track={(each) => (tracked[view.id] = each)} />
+        <view.component {repo} {tab} {update} {refusals} track={(each) => (tracked[view.id] = each)} />
       </div>
     {/if}
   {/each}

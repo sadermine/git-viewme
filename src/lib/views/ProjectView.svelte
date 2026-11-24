@@ -9,7 +9,7 @@
   import type { Board, Column, CoreError } from '$lib/types';
   import type { ViewProps } from '$lib/views';
 
-  let { repo, track }: ViewProps = $props();
+  let { repo, track, refusals }: ViewProps = $props();
 
   /** Cards whose move GitHub has not answered yet, or answered while a board fetch that began before
    *  the answer is still running, each with the option it is moving to. A second move of the same card waits. */
@@ -28,7 +28,8 @@
   $effect.pre(() => track(() => [board]));
   const projectsUrl = $derived(`https://github.com/${repo.ref.owner}/${repo.ref.name}/projects`);
 
-  let failure = $state<{ title: string; error: CoreError } | null>(null);
+  // Kept in the workspace, so a refusal that arrives after the tab closed shows when it reopens.
+  const failure = $derived(projectKey === null ? null : (refusals.get(projectKey) ?? null));
   let dragging = $state<string | null>(null);
   let dropTarget = $state<Column | null>(null);
   let menuFor = $state<string | null>(null);
@@ -42,11 +43,14 @@
     const fieldId = value.status_field_id;
     const optionId = to.option_id;
     const from = value.columns.find((column) => column.cards.some((card) => card.item_id === itemId));
-    if (fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
+    // Captured before the await, so a late answer is recorded in the workspace the move began in.
+    const key = projectKey;
+    const store = refusals;
+    if (key === null || fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
     const index = from.cards.findIndex((card) => card.item_id === itemId);
     const title = from.cards[index].title;
     placeCard(value, itemId, optionId);
-    failure = null;
+    store.delete(key);
     pending[itemId] = optionId;
     if (refocus) void focusMoveButton(itemId);
     try {
@@ -55,10 +59,12 @@
       delete pending[itemId];
     } catch (error) {
       delete pending[itemId];
+      // Recorded before the board is touched: after the tab closed, shown() reads a destroyed view.
+      const refusal = { title, error: api.asCoreError(error) };
+      store.set(key, refusal);
       const current = shown();
       if (current !== null) placeCard(current, itemId, from.option_id, index);
-      failure = { title, error: api.asCoreError(error) };
-      if (failure.error.kind === 'unauthorized') session.lost();
+      if (refusal.error.kind === 'unauthorized') session.lost();
     }
     if (refocus) void focusMoveButton(itemId);
   }
@@ -157,7 +163,7 @@
             {#if failure.error.kind === 'missing_scope'}
               <button onclick={() => session.signOut()}>Sign out and sign in again</button>
             {/if}
-            <button onclick={() => (failure = null)}>Dismiss</button>
+            <button onclick={() => projectKey !== null && refusals.delete(projectKey)}>Dismiss</button>
           </div>
         {/if}
         <div class="board">
