@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { placeCard, withPendingMoves } from '../src/lib/board.ts';
+import { moveTargets, placeCard, withPendingMoves } from '../src/lib/board.ts';
 
 const card = (id) => ({ item_id: id, title: id, number: null, url: `https://github.com/o/r/issues/${id}`, labels: [] });
 
@@ -39,4 +39,35 @@ test('a card or lane that is not on the board is left alone', () => {
   assert.equal(placeCard(shown, 'a', 'Gone'), false);
   assert.equal(placeCard(shown, 'z', 'Todo'), false);
   assert.deepEqual(lanes(shown), { Todo: ['a'] });
+});
+
+/** A board whose lanes are given as [name, option_id, card IDs], so a lane can have no option. */
+function boardOf(...columns) {
+  return {
+    project_id: 'P',
+    status_field_id: 'F',
+    columns: columns.map(([name, option_id, ids]) => ({ name, option_id, cards: ids.map(card) })),
+  };
+}
+
+const names = (columns) => columns.map((column) => column.name);
+
+test('a Status field with no options gives a card no lane to move to', () => {
+  const shown = boardOf(['No status', null, ['a']]);
+  assert.deepEqual(moveTargets(shown, shown.columns[0]), []);
+});
+
+test('a card already in the only option lane has no lane to move to', () => {
+  const shown = boardOf(['Todo', 'todo', ['a']]);
+  assert.deepEqual(moveTargets(shown, shown.columns[0]), []);
+});
+
+test('a card with no status can move to every option lane, in board order, and not to its own lane', () => {
+  const shown = boardOf(['No status', null, ['a']], ['Todo', 'todo', []], ['Done', 'done', []]);
+  assert.deepEqual(names(moveTargets(shown, shown.columns[0])), ['Todo', 'Done']);
+});
+
+test('a card in one of two option lanes can move to the other one only', () => {
+  const shown = boardOf(['No status', null, ['b']], ['Todo', 'todo', ['a']], ['Done', 'done', []]);
+  assert.deepEqual(names(moveTargets(shown, shown.columns[1])), ['Done']);
 });

@@ -1,8 +1,12 @@
 import { SvelteMap } from 'svelte/reactivity';
-import { repoKey, type RepoRef } from './types';
+import { repoKey, type CoreError, type RepoRef } from './types';
 import type { ViewId } from './views';
 
 export type RepoTabState = { view: ViewId; selectedPath: string | null };
+
+/** A card move GitHub refused, shown above that project's board until it is dismissed or the card
+ *  is moved again. */
+export type MoveRefusal = { itemId: string; title: string; error: CoreError };
 
 /** The open repository tabs. One lives for each signed-in session and is dropped on sign-out. */
 export class Workspace {
@@ -10,6 +14,10 @@ export class Workspace {
   activeTab = $state<RepoRef | null>(null);
   /** Keyed by "owner/name". */
   tabState = new SvelteMap<string, RepoTabState>();
+  /** The refused moves on each project, one per card, keyed by "owner/number". It lives here rather than in
+   *  the Project view so that a refusal arriving after its tab closed is still shown when the tab
+   *  opens again, and it is dropped with the workspace at sign-out. */
+  refusals = new SvelteMap<string, MoveRefusal[]>();
 
   isActive(ref: RepoRef): boolean {
     return this.activeTab !== null && repoKey(this.activeTab) === repoKey(ref);

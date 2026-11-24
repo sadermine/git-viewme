@@ -1,7 +1,8 @@
 import type { Component } from 'svelte';
+import type { SvelteMap } from 'svelte/reactivity';
 import type { Refreshable } from './refresh';
 import type { Repo } from './types';
-import type { RepoTabState } from './workspace.svelte';
+import type { MoveRefusal, RepoTabState } from './workspace.svelte';
 import FilesView from './views/FilesView.svelte';
 import IssuesView from './views/IssuesView.svelte';
 import ProjectView from './views/ProjectView.svelte';
@@ -14,6 +15,8 @@ export type ViewProps = {
   /** A view calls this once with the loads its content comes from. The header's Refresh refreshes
    *  them and shows their status. A null entry is a load the view does not have right now. */
   track: (loads: () => readonly (Refreshable | null)[]) => void;
+  /** The workspace's refused card moves, keyed by project "owner/number", which outlive the tab. */
+  refusals: SvelteMap<string, MoveRefusal[]>;
 };
 
 /** The views inside a repository tab. The header's view buttons render from this list, so a new

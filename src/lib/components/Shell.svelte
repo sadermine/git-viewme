@@ -57,7 +57,7 @@
         {@const repo = byKey.get(repoKey(ref))}
         {@const tab = workspace.tabState.get(repoKey(ref))}
         {#if repo && tab}
-          <RepoTab {repo} {tab} hidden={!workspace.isActive(ref)} update={(change) => workspace.update(ref, change)} />
+          <RepoTab {repo} {tab} refusals={workspace.refusals} hidden={!workspace.isActive(ref)} update={(change) => workspace.update(ref, change)} />
         {:else if tab && workspace.isActive(ref)}
           <Notice title="{repoKey(ref)} is no longer in your repository list">
             It may have been renamed, transferred or deleted, or you may have lost access to it. Close this tab. If it was renamed, open it again from the sidebar under its new name.
