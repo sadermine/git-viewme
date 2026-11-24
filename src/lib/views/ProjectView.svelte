@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
   import * as api from '$lib/api';
-  import { placeCard, withPendingMoves } from '$lib/board';
+  import { moveTargets, placeCard, withPendingMoves } from '$lib/board';
   import LoadView from '$lib/components/LoadView.svelte';
   import Notice from '$lib/components/Notice.svelte';
   import { describeError } from '$lib/errors';
@@ -9,7 +9,7 @@
   import type { Board, Column, CoreError } from '$lib/types';
   import type { ViewProps } from '$lib/views';
 
-  let { repo, track }: ViewProps = $props();
+  let { repo, track, refusals }: ViewProps = $props();
 
   /** Cards whose move GitHub has not answered yet, or answered while a board fetch that began before
    *  the answer is still running, each with the option it is moving to. A second move of the same card waits. */
@@ -28,7 +28,8 @@
   $effect.pre(() => track(() => [board]));
   const projectsUrl = $derived(`https://github.com/${repo.ref.owner}/${repo.ref.name}/projects`);
 
-  let failure = $state<{ title: string; error: CoreError } | null>(null);
+  // Kept in the workspace, so a refusal that arrives after the tab closed shows when it reopens.
+  const failure = $derived(projectKey === null ? null : (refusals.get(projectKey) ?? null));
   let dragging = $state<string | null>(null);
   let dropTarget = $state<Column | null>(null);
   let menuFor = $state<string | null>(null);
@@ -42,25 +43,30 @@
     const fieldId = value.status_field_id;
     const optionId = to.option_id;
     const from = value.columns.find((column) => column.cards.some((card) => card.item_id === itemId));
-    if (fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
+    // Captured before the await, so a late answer is recorded in the workspace the move began in.
+    const key = projectKey;
+    const store = refusals;
+    if (key === null || fieldId === null || optionId === null || from === undefined || from === to || pending[itemId]) return;
     const index = from.cards.findIndex((card) => card.item_id === itemId);
     const title = from.cards[index].title;
     placeCard(value, itemId, optionId);
-    failure = null;
+    store.delete(key);
     pending[itemId] = optionId;
-    if (refocus) void focusMoveButton(itemId);
+    if (refocus) void focusCard(itemId);
     try {
       await api.moveCard({ project_id: value.project_id, item_id: itemId, field_id: fieldId, option_id: optionId });
       if (board?.current.refreshing) await board.refresh();
       delete pending[itemId];
     } catch (error) {
       delete pending[itemId];
+      // Recorded before the board is touched: after the tab closed, shown() reads a destroyed view.
+      const refusal = { title, error: api.asCoreError(error) };
+      store.set(key, refusal);
       const current = shown();
       if (current !== null) placeCard(current, itemId, from.option_id, index);
-      failure = { title, error: api.asCoreError(error) };
-      if (failure.error.kind === 'unauthorized') session.lost();
+      if (refusal.error.kind === 'unauthorized') session.lost();
     }
-    if (refocus) void focusMoveButton(itemId);
+    if (refocus) void focusCard(itemId);
   }
 
   function failureMessage(error: CoreError): string {
@@ -74,16 +80,18 @@
     }
   }
 
-  /** Focuses the card's Move to button, unless the user has since focused something else. */
-  async function focusMoveButton(itemId: string) {
+  /** Focuses the card's Move to button or, when the card has no lane left to go to and so no
+   *  button, its open button, unless the user has since focused something else. */
+  async function focusCard(itemId: string) {
     await tick();
     if (document.activeElement !== null && document.activeElement !== document.body) return;
-    document.querySelector<HTMLElement>(`[data-move="${CSS.escape(itemId)}"]`)?.focus();
+    const card = document.querySelector<HTMLElement>(`[data-card="${CSS.escape(itemId)}"]`);
+    (card?.querySelector<HTMLElement>('[data-move]') ?? card?.querySelector<HTMLElement>('.open'))?.focus();
   }
 
   function closeMenu(itemId: string) {
     menuFor = null;
-    void focusMoveButton(itemId);
+    void focusCard(itemId);
   }
 
   function focusFirstItem(menu: HTMLElement) {
@@ -149,7 +157,6 @@
 {:else}
   <LoadView load={board}>
     {#snippet children(value)}
-      {@const movable = value.status_field_id !== null}
       <div class="project">
         {#if failure !== null}
           <div class="failure" role="alert">
@@ -157,7 +164,7 @@
             {#if failure.error.kind === 'missing_scope'}
               <button onclick={() => session.signOut()}>Sign out and sign in again</button>
             {/if}
-            <button onclick={() => (failure = null)}>Dismiss</button>
+            <button onclick={() => projectKey !== null && refusals.delete(projectKey)}>Dismiss</button>
           </div>
         {/if}
         {#if value.columns.length === 0}
@@ -165,6 +172,7 @@
         {:else}
           <div class="board">
             {#each value.columns as column (column.option_id ?? '')}
+              {@const targets = moveTargets(value, column)}
               <section
                 class="column"
                 class:target={dropTarget === column}
@@ -182,9 +190,10 @@
                     {@const busy = pending[card.item_id] !== undefined}
                     <article
                       class="card"
+                      data-card={card.item_id}
                       class:dragging={dragging === card.item_id}
                       aria-busy={busy}
-                      draggable={movable && !busy}
+                      draggable={targets.length > 0 && !busy}
                       ondragstart={(event) => startDrag(event, card.item_id)}
                       ondragend={endDrag}
                     >
@@ -197,7 +206,7 @@
                           </span>
                         {/if}
                       </button>
-                      {#if movable}
+                      {#if targets.length > 0 || busy}
                         <div class="move" onfocusout={leaveMenu}>
                           <button
                             class="move-button"
@@ -220,16 +229,14 @@
                               {@attach focusFirstItem}
                               onkeydown={(event) => menuKey(event, card.item_id)}
                             >
-                              {#each value.columns as target (target.option_id ?? '')}
-                                {#if target !== column && target.option_id !== null}
-                                  <button
-                                    role="menuitem"
-                                    onclick={() => {
-                                      menuFor = null;
-                                      void move(value, card.item_id, target, true);
-                                    }}>{target.name}</button
-                                  >
-                                {/if}
+                              {#each targets as target (target.option_id)}
+                                <button
+                                  role="menuitem"
+                                  onclick={() => {
+                                    menuFor = null;
+                                    void move(value, card.item_id, target, true);
+                                  }}>{target.name}</button
+                                >
                               {/each}
                             </div>
                           {/if}
