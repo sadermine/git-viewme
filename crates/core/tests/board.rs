@@ -172,6 +172,16 @@ fn board_from_pages_project_without_status_field_has_no_field_to_move_with() {
 }
 
 #[test]
+fn board_from_pages_empty_project_without_status_field_has_no_columns() {
+    let body = page(Value::Null, json!([]));
+
+    let board = board_from_pages([body.as_str()]).unwrap();
+
+    assert!(board.columns.is_empty());
+    assert_eq!(board.status_field_id, None);
+}
+
+#[test]
 fn board_from_pages_recorded_board_carries_the_ids_a_move_names() {
     let board = board_from_pages([RECORDED]).unwrap();
 
