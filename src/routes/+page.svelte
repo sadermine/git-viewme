@@ -1,8 +1,8 @@
 <script lang="ts">
   import '../app.css';
-  import Shell from '$lib/components/Shell.svelte';
-  import SignIn from '$lib/components/SignIn.svelte';
-  import { session } from '$lib/session.svelte';
+  import Shell from '#lib/components/Shell.svelte';
+  import SignIn from '#lib/components/SignIn.svelte';
+  import { session } from '#lib/session.svelte.ts';
 
   void session.check();
 </script>

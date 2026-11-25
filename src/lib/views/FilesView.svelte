@@ -1,12 +1,12 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity';
-  import * as api from '$lib/api';
-  import LoadView from '$lib/components/LoadView.svelte';
-  import Notice from '$lib/components/Notice.svelte';
-  import { chain } from '$lib/refresh';
-  import { Load } from '$lib/session.svelte';
-  import type { TreeEntry } from '$lib/types';
-  import type { ViewProps } from '$lib/views';
+  import * as api from '#lib/api.ts';
+  import LoadView from '#lib/components/LoadView.svelte';
+  import Notice from '#lib/components/Notice.svelte';
+  import { chain } from '#lib/refresh.ts';
+  import { Load } from '#lib/session.svelte.ts';
+  import type { TreeEntry } from '#lib/types.ts';
+  import type { ViewProps } from '#lib/views.ts';
 
   let { repo, tab, update, track }: ViewProps = $props();
 

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import * as api from '$lib/api';
-  import { describeError } from '$lib/errors';
-  import { Load, session } from '$lib/session.svelte';
-  import { repoKey, type Repo } from '$lib/types';
-  import { Workspace } from '$lib/workspace.svelte';
+  import * as api from '#lib/api.ts';
+  import { describeError } from '#lib/errors.ts';
+  import { Load, session } from '#lib/session.svelte.ts';
+  import { repoKey, type Repo } from '#lib/types.ts';
+  import { Workspace } from '#lib/workspace.svelte.ts';
   import LoadView from './LoadView.svelte';
   import Notice from './Notice.svelte';
   import RefreshControl from './RefreshControl.svelte';

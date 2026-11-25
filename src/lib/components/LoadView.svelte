@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
   import type { Snippet } from 'svelte';
-  import type { Load } from '$lib/session.svelte';
-  import { describeError } from '$lib/errors';
+  import type { Load } from '#lib/session.svelte.ts';
+  import { describeError } from '#lib/errors.ts';
 
   let { load, children }: { load: Load<T>; children: Snippet<[T]> } = $props();
 </script>

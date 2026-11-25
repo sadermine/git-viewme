@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { describeError } from '$lib/errors';
-  import { updatedLabel, type RefreshStatus } from '$lib/refresh';
+  import { describeError } from '#lib/errors.ts';
+  import { updatedLabel, type RefreshStatus } from '#lib/refresh.ts';
 
   let { status, refresh, title }: { status: RefreshStatus; refresh: () => void; title: string } = $props();
 

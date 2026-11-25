@@ -1,13 +1,13 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
-  import * as api from '$lib/api';
-  import { moveTargets, placeCard, withPendingMoves } from '$lib/board';
-  import LoadView from '$lib/components/LoadView.svelte';
-  import Notice from '$lib/components/Notice.svelte';
-  import { describeError } from '$lib/errors';
-  import { Load, session } from '$lib/session.svelte';
-  import type { Board, Column, CoreError } from '$lib/types';
-  import type { ViewProps } from '$lib/views';
+  import * as api from '#lib/api.ts';
+  import { moveTargets, placeCard, withPendingMoves } from '#lib/board.ts';
+  import LoadView from '#lib/components/LoadView.svelte';
+  import Notice from '#lib/components/Notice.svelte';
+  import { describeError } from '#lib/errors.ts';
+  import { Load, session } from '#lib/session.svelte.ts';
+  import type { Board, Column, CoreError } from '#lib/types.ts';
+  import type { ViewProps } from '#lib/views.ts';
 
   let { repo, track, refusals }: ViewProps = $props();
 
